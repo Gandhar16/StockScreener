@@ -1,0 +1,228 @@
+You are a senior quantitative equities engineer and fundamental investing systems designer.
+
+I have an existing Python-based stock fundamental analysis engine (currently in fundamental.py) that is too rigid and uses overly simplistic universal thresholds. I want you to redesign and implement a V2 version of this engine.
+
+Current issues in V1:
+- It uses hard universal filters like current ratio >= 1.0, debt-to-equity <= 2.0, and P/E between 0 and 40.
+- It scores stocks using fixed cutoffs such as low P/E being better, ROIC above a fixed threshold, and FCF/Net Income >= 1.0.
+- It mixes company quality and valuation into a single score.
+- It is not sector-aware.
+- It is not cycle-aware for cyclicals like semiconductors, commodities, industrials, and shipping.
+- It over-relies on trailing metrics and does not properly use forward or normalized metrics.
+- It lacks explicit qualitative overlays like moat, management quality, capital allocation, dilution risk, and customer concentration.
+
+I want you to refactor this into a modern, context-aware, sector-aware fundamental analysis engine.
+
+GOALS
+1. Keep the system explainable and deterministic.
+2. Make it useful both as a screener and as a ranking engine.
+3. Avoid universal “one-size-fits-all” thresholds where they are not appropriate.
+4. Distinguish between:
+   - business quality
+   - valuation attractiveness
+   - balance sheet / financial risk
+   - cycle/context risk
+5. Support both classical value investing concepts and modern factor-style analysis.
+
+DESIGN REQUIREMENTS
+
+1. ARCHITECTURE
+Redesign the engine into these layers:
+- Data normalization layer
+- Sector classification layer
+- Hard red-flag filter layer
+- Sector-aware factor scoring layer
+- Final decision/rating layer
+- Explanation generation layer
+
+2. DATA NORMALIZATION
+Implement support for these data windows where available:
+- TTM
+- Forward 12M
+- 3-year averages
+- 5-year averages
+- Normalized / cycle-adjusted values where applicable
+
+Metrics should not rely only on a single trailing snapshot if a better window exists.
+
+3. SECTOR-AWARE LOGIC
+Create sector-specific metric templates/configs at minimum for:
+- Software / SaaS
+- Semiconductors
+- Banks / Financials
+- Utilities
+- Consumer Staples / Consumer Brands
+- Industrials
+- Energy / Commodities
+- Healthcare / Pharma
+
+Each sector config should define:
+- relevant metrics
+- irrelevant metrics
+- preferred valuation methods
+- acceptable leverage framework
+- cycle sensitivity
+- scoring weights
+
+Examples:
+- Software: revenue growth, gross margin, FCF margin, dilution, Rule of 40 matter more than current ratio.
+- Semiconductors: normalized margins, capex intensity, inventory, forward earnings, cycle awareness matter.
+- Banks: CET1, NIM, credit quality, efficiency ratio matter; current ratio and D/E should not be used like industrials.
+- Utilities: debt service, regulated returns, dividend safety, rate-base growth matter more than raw growth.
+
+4. HARD RED FLAGS
+Replace simplistic hard filters with a red-flag framework. Examples:
+- going-concern risk
+- persistent negative operating cash flow
+- excessive dilution
+- dangerous leverage
+- weak interest coverage
+- accounting quality concerns
+- debt maturity / liquidity stress
+- severe customer concentration or regulatory concentration if data exists
+
+These should either:
+- disqualify the stock, or
+- impose a major score penalty,
+depending on severity.
+
+5. FACTOR MODEL
+Build separate scores from 0 to 100 for:
+- Business Quality Score
+- Valuation Score
+- Financial Risk Score
+- Growth Score
+- Capital Allocation Score
+- Optional Cycle Risk Score
+
+Then generate a final rating using these scores instead of one blended opaque score.
+
+6. VALUATION IMPROVEMENTS
+Do NOT use only trailing P/E.
+Use sector-appropriate valuation metrics, such as:
+- Forward P/E
+- PEG
+- EV/EBITDA
+- EV/FCF or P/FCF
+- P/S where appropriate
+- P/B for sectors where relevant
+- Normalized earnings for cyclicals
+
+Value metrics should be interpreted:
+- relative to sector peers
+- relative to the company’s own historical range
+- relative to its growth, margins, and cash generation
+
+7. QUALITY IMPROVEMENTS
+Score quality using context-aware metrics such as:
+- ROIC or ROCE where relevant
+- gross margin stability
+- operating margin
+- FCF margin
+- earnings quality / cash conversion
+- moat proxy metrics where possible
+- pricing power proxy metrics where possible
+
+For cyclicals, do not over-penalize temporarily weak FCF conversion if capex cycle and operating cycle justify it.
+
+8. GROWTH IMPROVEMENTS
+Add growth scoring based on:
+- revenue CAGR
+- EPS CAGR
+- FCF growth where relevant
+- margin expansion
+- estimate revisions if available
+- growth durability, not just one-year spikes
+
+9. QUALITATIVE / STRATEGIC OVERLAY
+Add optional analyst-entered or LLM-assisted fields for:
+- moat score
+- management quality
+- capital allocation discipline
+- transparency / integrity
+- dilution risk
+- customer concentration risk
+- regulatory risk
+- cyclicality score
+
+These should be optional but supported cleanly in the architecture.
+
+10. GOOD COMPANY VS GOOD BUY
+The output must clearly separate:
+- “Great business, poor price”
+- “Average business, attractive valuation”
+- “High-quality and attractively valued”
+- “Low-quality and expensive / avoid”
+
+Do not collapse everything into one label.
+
+11. DECISION OUTPUT
+Final output should include:
+- final rating bucket
+- all sub-scores
+- key strengths
+- key weaknesses
+- main risks
+- why valuation is attractive or unattractive
+- whether weakness is structural or cyclical
+- whether the stock is a good business, good stock, both, or neither
+
+12. RATING BUCKETS
+Use something like:
+- Strong Buy
+- Buy
+- Watchlist
+- Hold / Neutral
+- Avoid
+- High Risk / Special Situation
+
+But make the label depend on the combination of quality, valuation, and risk, not just one number.
+
+13. IMPLEMENTATION REQUIREMENTS
+Please:
+- inspect the existing code structure first
+- refactor, do not just patch
+- move thresholds/configs into clearly organized config structures (dicts, dataclasses, JSON, or YAML)
+- write modular code
+- keep functions testable
+- document assumptions clearly in code comments/docstrings
+- avoid magic numbers in scoring logic
+- add helper functions for normalized scoring / percentile style scoring
+- make the system easy to extend to new sectors later
+
+14. EXPECTED DELIVERABLES
+I want all of the following:
+1. A rewritten V2 implementation
+2. A clear explanation of the new architecture
+3. A list of every major change from V1 to V2
+4. Suggested default sector configs and weights
+5. Notes on edge cases and limitations
+6. Example output for at least:
+   - a software stock
+   - a semiconductor stock
+   - a bank
+7. If needed, create additional supporting files such as:
+   - sector_config.py or sector_config.json
+   - scoring.py
+   - risk_flags.py
+   - explanation.py
+
+15. IMPORTANT MODELING PRINCIPLES
+Use these principles:
+- Benjamin Graham style safety concepts are useful but should not be blindly universal.
+- Philip Fisher style growth and qualitative business quality should be incorporated.
+- Buffett-style quality and capital allocation logic should be represented.
+- Modern analysis should prefer sector-aware and cycle-aware evaluation over fixed cross-market thresholds.
+- Trailing P/E alone must never determine buy/hold/avoid.
+
+16. CODING STYLE
+- Write production-quality Python.
+- Prefer readable, modular design.
+- If you need to introduce dataclasses or typed models, do so.
+- Add TODO notes only where real data dependencies exist.
+- Keep the explanation logic human-readable so the engine can justify its ratings.
+
+Please begin by:
+1. Summarizing the flaws in the current design,
+2. Proposing the V2 architecture,
+3. Then implementing the refactor.

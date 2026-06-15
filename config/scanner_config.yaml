@@ -1,0 +1,168 @@
+mode: market_scan
+tickers:
+- AAPL
+- MSFT
+- GOOGL
+- AMZN
+- META
+- NVDA
+- TSLA
+- BRK-B
+- JNJ
+- V
+- WMT
+- PG
+- JPM
+filters:
+  min_market_cap: 500000000.0
+  min_price: 5.0
+  min_volume: 100000.0
+  min_current_ratio: 1.0
+  max_debt_to_equity: 2.0
+  max_pe_ratio: 40.0
+weights:
+  category_weights:
+    graham_safety: 0.26176291450968275
+    fisher_growth: 0.6288013081353374
+    buffett_quality: 0.10943577735497989
+  graham_safety:
+    current_ratio: 0.2359898485437299
+    debt_to_equity: 0.24628046646446955
+    pe_ratio: 0.5177296849918006
+  fisher_growth:
+    revenue_growth_yoy: 0.5341126537262203
+    eps_growth_yoy: 0.16061991502631676
+    rd_intensity: 0.30526743124746286
+  buffett_quality:
+    roic: 0.09106536664194147
+    operating_margin: 0.4651996304262906
+    fcf_to_net_income: 0.443735002931768
+scoring_ranges:
+  pe_ratio:
+  - 7.984447914486329
+  - 35.97373737165013
+  current_ratio:
+  - 1.1089702114381723
+  - 2.3056785370992694
+  debt_to_equity:
+  - 0.6337575600526059
+  - 2.5787580602392515
+  revenue_growth_yoy:
+  - 0.027862647863055826
+  - 0.2060707344390355
+  eps_growth_yoy:
+  - -0.049942810387205654
+  - 0.16483121140093462
+  rd_intensity:
+  - 0.0
+  - 0.1
+  roic:
+  - 0.02116860454314994
+  - 0.28723775092763104
+  operating_margin:
+  - 0.07272331266939105
+  - 0.31633310587223584
+batch:
+  size: 5
+  delay_seconds: 15.0
+sector_profiles:
+  Technology:
+    filters:
+      min_market_cap: 500000000
+      min_price: 5.0
+      min_volume: 100000
+      min_current_ratio: 1.0
+      max_debt_to_equity: 1.5
+      max_pe_ratio: 50.0
+    weights:
+      category_weights:
+        graham_safety: 0.25
+        fisher_growth: 0.45
+        buffett_quality: 0.3
+      graham_safety:
+        current_ratio: 0.3
+        debt_to_equity: 0.3
+        pe_ratio: 0.4
+      fisher_growth:
+        revenue_growth_yoy: 0.4
+        eps_growth_yoy: 0.4
+        rd_intensity: 0.2
+      buffett_quality:
+        roic: 0.4
+        operating_margin: 0.3
+        fcf_to_net_income: 0.3
+    scoring_ranges:
+      pe_ratio:
+      - 15.0
+      - 40.0
+      current_ratio:
+      - 1.0
+      - 2.5
+      debt_to_equity:
+      - 0.3
+      - 1.5
+      revenue_growth_yoy:
+      - 0.0
+      - 0.2
+      eps_growth_yoy:
+      - 0.0
+      - 0.2
+      rd_intensity:
+      - 0.0
+      - 0.12
+      roic:
+      - 0.08
+      - 0.25
+      operating_margin:
+      - 0.1
+      - 0.3
+  Financial Services:
+    filters:
+      min_market_cap: 500000000
+      min_price: 5.0
+      min_volume: 100000
+      min_current_ratio: 0.0
+      max_debt_to_equity: 6.0
+      max_pe_ratio: 25.0
+    weights:
+      category_weights:
+        graham_safety: 0.45
+        fisher_growth: 0.15
+        buffett_quality: 0.4
+      graham_safety:
+        current_ratio: 0.0
+        debt_to_equity: 0.5
+        pe_ratio: 0.5
+      fisher_growth:
+        revenue_growth_yoy: 0.5
+        eps_growth_yoy: 0.5
+        rd_intensity: 0.0
+      buffett_quality:
+        roic: 0.5
+        operating_margin: 0.5
+        fcf_to_net_income: 0.0
+    scoring_ranges:
+      pe_ratio:
+      - 8.0
+      - 20.0
+      current_ratio:
+      - 0.0
+      - 1.0
+      debt_to_equity:
+      - 1.0
+      - 5.0
+      revenue_growth_yoy:
+      - 0.0
+      - 0.08
+      eps_growth_yoy:
+      - 0.0
+      - 0.1
+      rd_intensity:
+      - 0.0
+      - 0.01
+      roic:
+      - 0.04
+      - 0.12
+      operating_margin:
+      - 0.05
+      - 0.2

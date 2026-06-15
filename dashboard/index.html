@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockCalls - Quant Backtest Dashboard</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-mode">
+    <div class="app-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="trending-up"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>StockCalls</h1>
+                    <span>Deterministic Quant Analytics</span>
+                </div>
+            </div>
+            <div class="system-status">
+                <span class="status-dot green"></span>
+                <span>Optimized Engine Active</span>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="dashboard-main">
+            <!-- Key Metrics Panel -->
+            <section class="metrics-grid" id="metrics-panel">
+                <!-- Initial Capital -->
+                <div class="metric-card glass">
+                    <div class="metric-header">
+                        <span>Starting Capital</span>
+                        <div class="metric-icon purple"><i data-lucide="wallet"></i></div>
+                    </div>
+                    <div class="metric-value" id="val-start">$0.00</div>
+                    <div class="metric-sub">Simulation Base Allocation</div>
+                </div>
+                <!-- Final Capital -->
+                <div class="metric-card glass">
+                    <div class="metric-header">
+                        <span>Ending Capital</span>
+                        <div class="metric-icon blue"><i data-lucide="banknote"></i></div>
+                    </div>
+                    <div class="metric-value" id="val-end">$0.00</div>
+                    <div class="metric-sub" id="val-absolute-return">+$0.00 Net Profit</div>
+                </div>
+                <!-- Portfolio Return -->
+                <div class="metric-card glass">
+                    <div class="metric-header">
+                        <span>Portfolio Return</span>
+                        <div class="metric-icon green"><i data-lucide="percent"></i></div>
+                    </div>
+                    <div class="metric-value text-green" id="val-return">0.00%</div>
+                    <div class="metric-sub" id="val-bench-comp">vs 0.00% S&P 500</div>
+                </div>
+                <!-- Max Drawdown -->
+                <div class="metric-card glass">
+                    <div class="metric-header">
+                        <span>Max Drawdown</span>
+                        <div class="metric-icon red"><i data-lucide="shield-alert"></i></div>
+                    </div>
+                    <div class="metric-value text-red" id="val-drawdown">0.00%</div>
+                    <div class="metric-sub" id="val-bench-drawdown">vs 0.00% S&P 500</div>
+                </div>
+                <!-- Win Rate -->
+                <div class="metric-card glass">
+                    <div class="metric-header">
+                        <span>Win Rate</span>
+                        <div class="metric-icon gold"><i data-lucide="award"></i></div>
+                    </div>
+                    <div class="metric-value text-gold" id="val-winrate">0.00%</div>
+                    <div class="metric-sub" id="val-win-ratio">0 of 0 Trades Winning</div>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <!-- Equity Curve Card -->
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <div class="chart-title">
+                            <i data-lucide="line-chart"></i>
+                            <h2>Equity Curve Timeline</h2>
+                        </div>
+                        <span class="chart-legend">Cumulative Portfolio Value vs S&P 500 Benchmark</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="equityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Drawdown Card -->
+                <div class="chart-card glass">
+                    <div class="chart-header">
+                        <div class="chart-title">
+                            <i data-lucide="bar-chart-2"></i>
+                            <h2>Drawdown Profile</h2>
+                        </div>
+                        <span class="chart-legend">Historical peak-to-trough paper losses</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="drawdownChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trade Logs Section -->
+            <section class="logs-section glass">
+                <div class="logs-header">
+                    <div class="logs-title">
+                        <i data-lucide="list-checks"></i>
+                        <h2>Simulation Trade Log</h2>
+                    </div>
+                    <div class="logs-actions">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="log-search" placeholder="Search ticker...">
+                        </div>
+                        <select id="log-filter">
+                            <option value="ALL">All Outcomes</option>
+                            <option value="WIN">Wins Only</option>
+                            <option value="LOSS">Losses Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="trade-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th>Action</th>
+                                <th>Entry Date & Time</th>
+                                <th>Exit Date & Time</th>
+                                <th>Entry Price ($)</th>
+                                <th>Exit Price ($)</th>
+                                <th>Position Size (Shares)</th>
+                                <th>Profit/Loss ($)</th>
+                                <th>Return (%)</th>
+                                <th>Outcome</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trade-log-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="dashboard-footer">
+            <p>&copy; 2026 StockCalls. Built using deterministic Python scanner heuristics & mathematical rebalancing.</p>
+        </footer>
+    </div>
+
+    <!-- App Scripts -->
+    <script src="app.js"></script>
+    <script>
+        // Initialize icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
