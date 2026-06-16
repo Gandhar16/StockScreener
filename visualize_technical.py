@@ -26,6 +26,7 @@ import matplotlib.patches as mpatches
 import yfinance as yf
 
 from stock_scanner.engine.technical import MarketStructureEngine
+from stock_scanner.engine.patterns import PatternFinder
 
 
 # ── constants ─────────────────────────────────────────────────────────────────
@@ -180,6 +181,46 @@ def draw_horizontal_zone(ax, zone: dict, color: str, chart_bars: int,
             fontweight="bold", zorder=7)
 
 
+def draw_patterns(ax, patterns: list, df: pd.DataFrame, price_range: float) -> None:
+    """Annotate detected patterns on the price chart."""
+    offset = price_range * 0.018
+    seen_bars = {}   # deduplicate labels at the same bar (keep most important)
+
+    for p in patterns:
+        bar   = p["label_bar"]
+        color = ("#00e676" if p["type"] == "bullish"
+                 else "#ef5350" if p["type"] == "bearish"
+                 else "#ffeb3b")
+
+        # draw connecting lines for multi-bar chart patterns
+        idxs = p["bar_indices"]
+        if len(idxs) >= 3:
+            if p["type"] == "bearish":
+                ys = [float(df["High"].iloc[x]) for x in idxs]
+            else:
+                ys = [float(df["Low"].iloc[x]) for x in idxs]
+            ax.plot(idxs, ys, color=color, linewidth=1.1,
+                    linestyle=":", alpha=0.75, zorder=5)
+
+        # label — one per bar, prefer chart patterns over candlestick ones
+        priority = 0 if len(idxs) >= 3 else 1
+        if bar not in seen_bars or seen_bars[bar][0] > priority:
+            seen_bars[bar] = (priority, p["short"], color,
+                              p["label_price"], p["label_above"])
+
+    for bar, (_, short, color, price, above) in seen_bars.items():
+        y = price + offset if above else price - offset
+        va = "bottom" if above else "top"
+        ax.annotate(
+            short,
+            xy=(bar, y), xycoords="data",
+            color=color, fontsize=6.5, fontweight="bold",
+            va=va, ha="center", zorder=9,
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="#131722",
+                      edgecolor=color, alpha=0.85, linewidth=0.8)
+        )
+
+
 def draw_volume(ax, df: pd.DataFrame) -> None:
     """Volume bars coloured green/red to match candle direction."""
     bull, bear = "#26a69a", "#ef5350"
@@ -270,6 +311,8 @@ def main():
     print(f"  {len(df)} bars  |  {df['Low'].min():.2f} - {df['High'].max():.2f}")
 
     engine        = MarketStructureEngine(window_size=5, tolerance_pct=0.015)
+    pattern_finder = PatternFinder(price_tolerance=0.03, min_pullback=0.03,
+                                   recent_candle_bars=60)
     current_price = float(df["Close"].iloc[-1])
     n             = len(df)
     price_lo      = float(df["Low"].min())
@@ -280,6 +323,7 @@ def main():
     print("  Running full-period analysis ...")
     result           = engine.analyze_structure(df)
     p_highs, p_lows  = engine._find_pivots(df)
+    patterns         = pattern_finder.find_all(df, p_highs, p_lows)
 
     vis_sup_zones = select_zones(result["support_zones"],    current_price, "support",    MAX_SUP_ZONES)
     vis_res_zones = select_zones(result["resistance_zones"], current_price, "resistance", MAX_RES_ZONES)
@@ -306,6 +350,10 @@ def main():
           f"ST sup={len(vis_st_sup)} ST res={len(vis_st_res)}")
     print(f"  Pivots  -> highs={len(p_highs)} lows={len(p_lows)} | "
           f"TL-anchored highs={len(hl_high_idx)} lows={len(hl_low_idx)}")
+    if patterns:
+        for p in patterns:
+            bar_date = df.index[p["completed_bar"]].date()
+            print(f"  Pattern : {p['name']:25s} [{p['type']:8s}]  bar {p['completed_bar']}  {bar_date}")
 
     # ── Build chart ───────────────────────────────────────────────────────
     fig, (ax, ax_vol) = plt.subplots(
@@ -366,7 +414,10 @@ def main():
                      f"{dist_label(tl['current_value'])}",
                      line_type="resistance")
 
-    # 7. Current price line
+    # 7. Pattern annotations
+    draw_patterns(ax, patterns, df, price_range)
+
+    # 8. Current price line
     ax.axhline(current_price, color="#ffeb3b", linewidth=0.9,
                linestyle=":", alpha=0.8, label=f"Price  {current_price:.2f}")
 
