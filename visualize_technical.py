@@ -180,6 +180,29 @@ def draw_horizontal_zone(ax, zone: dict, color: str, chart_bars: int,
             fontweight="bold", zorder=7)
 
 
+def draw_volume(ax, df: pd.DataFrame) -> None:
+    """Volume bars coloured green/red to match candle direction."""
+    bull, bear = "#26a69a", "#ef5350"
+    vol_max = float(df["Volume"].max())
+    for i, (_, row) in enumerate(df.iterrows()):
+        col = bull if float(row["Close"]) >= float(row["Open"]) else bear
+        ax.bar(i, float(row["Volume"]), width=0.8,
+               color=col, alpha=0.7, zorder=2)
+    # 20-bar SMA of volume
+    vol_sma = df["Volume"].rolling(20).mean()
+    ax.plot(range(len(df)), vol_sma.values,
+            color="#ffeb3b", linewidth=0.9, alpha=0.8, zorder=3, label="Vol SMA 20")
+    ax.set_ylim(0, vol_max * 1.15)
+    ax.yaxis.set_major_formatter(
+        plt.FuncFormatter(lambda v, _: f"{v/1e6:.1f}M" if v >= 1e6 else f"{v/1e3:.0f}K"))
+    ax.set_ylabel("Volume", color="#b2b5be", fontsize=8)
+    ax.tick_params(colors="#b2b5be", labelsize=7)
+    ax.set_facecolor("#131722")
+    ax.grid(color="#2a2e39", linewidth=0.4, axis="y", zorder=0)
+    for spine in ax.spines.values():
+        spine.set_color("#2a2e39")
+
+
 def format_x_axis(ax, df: pd.DataFrame, max_ticks: int = 10) -> None:
     n         = len(df)
     positions = np.linspace(0, n - 1, min(max_ticks, n), dtype=int)
@@ -285,11 +308,16 @@ def main():
           f"TL-anchored highs={len(hl_high_idx)} lows={len(hl_low_idx)}")
 
     # ── Build chart ───────────────────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(20, 10))
+    fig, (ax, ax_vol) = plt.subplots(
+        2, 1, figsize=(20, 12),
+        gridspec_kw={"height_ratios": [4, 1], "hspace": 0.04},
+        sharex=True, layout="constrained"
+    )
     fig.patch.set_facecolor("#131722")
-    ax.set_facecolor("#131722")
-    for spine in ax.spines.values():
-        spine.set_color("#2a2e39")
+    for a in (ax, ax_vol):
+        a.set_facecolor("#131722")
+        for spine in a.spines.values():
+            spine.set_color("#2a2e39")
     ax.tick_params(colors="#b2b5be", labelsize=7)
     ax.yaxis.label.set_color("#b2b5be")
     ax.xaxis.label.set_color("#b2b5be")
@@ -338,18 +366,23 @@ def main():
                      f"{dist_label(tl['current_value'])}",
                      line_type="resistance")
 
-    # 9. Current price
+    # 7. Current price line
     ax.axhline(current_price, color="#ffeb3b", linewidth=0.9,
                linestyle=":", alpha=0.8, label=f"Price  {current_price:.2f}")
 
-    # 10. Axis
+    # 8. Volume panel
+    draw_volume(ax_vol, df)
+
+    # 9. Axes
     price_pad = price_range * 0.04
     ax.set_xlim(-1, n + 7)
     ax.set_ylim(price_lo - price_pad, price_hi + price_pad)
-    format_x_axis(ax, df)
+    ax_vol.set_xlim(-1, n + 7)
+    format_x_axis(ax_vol, df)          # x labels on bottom panel only
+    ax.xaxis.set_visible(False)        # hide x labels on price panel
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
 
-    # 11. Legend
+    # 10. Legend (price panel)
     zone_patches = []
     if vis_sup_zones:
         zone_patches.append(mpatches.Patch(color="#00e676", alpha=0.45,
@@ -369,11 +402,9 @@ def main():
         f"{ticker}  -  Market Structure  |  {result['context']}  |  {period}",
         color="#d1d4dc", fontsize=11, pad=10
     )
-    ax.set_xlabel("Date", color="#b2b5be")
     ax.set_ylabel("Price (USD)", color="#b2b5be")
 
     out_file = f"reports/{ticker}_technical_{period}.png"
-    plt.tight_layout()
     plt.savefig(out_file, dpi=150, bbox_inches="tight",
                 facecolor=fig.get_facecolor())
     plt.close()
