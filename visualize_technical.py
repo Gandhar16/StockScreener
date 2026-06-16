@@ -102,24 +102,66 @@ def draw_pivot_markers(ax, p_highs: list, p_lows: list,
                    alpha=0.75, linewidths=0, label="Swing Low")
 
 
-def draw_trendline(ax, tl: dict, df_len: int, color: str,
-                   linestyle: str = "-", label: str = "",
-                   y_lo: float = 0.0, y_hi: float = 1e9) -> None:
-    """Draw the trendline clipped to the visible price range."""
+def channel_intercept(df: pd.DataFrame, tl: dict, line_type: str) -> float:
+    """
+    Return the intercept of the parallel channel line.
+    For a support channel: parallel line through the highest High between
+    the first and last touch so the band captures all price action.
+    For a resistance channel: through the lowest Low.
+    """
     m, b = tl["slope"], tl["intercept"]
-    x0   = tl["start_index"]
-
-    x1 = x0
-    for xi in range(x0, df_len):
-        yi = m * xi + b
-        if y_lo * 0.92 <= yi <= y_hi * 1.08:
-            x1 = xi
+    start, end = tl["start_index"], tl["end_index"]
+    n = len(df)
+    best_offset = 0.0
+    for k in range(start, min(end + 1, n)):
+        line_val = m * k + b
+        if line_type == "support":
+            offset = float(df["High"].iloc[k]) - line_val
+            if offset > best_offset:
+                best_offset = offset
         else:
-            break
+            offset = float(df["Low"].iloc[k]) - line_val   # negative
+            if offset < best_offset:
+                best_offset = offset
+    return b + best_offset
 
-    ax.plot([x0, x1], [m * x0 + b, m * x1 + b],
-            color=color, linewidth=1.7, linestyle=linestyle,
-            alpha=0.88, zorder=4, label=label if label else None)
+
+def draw_channel(ax, tl: dict, df: pd.DataFrame, color: str,
+                 linestyle: str = "-", label: str = "",
+                 line_type: str = "support") -> None:
+    """
+    Draw a price channel: base trendline (solid) + parallel channel line
+    (dashed, same colour, lighter) + shaded band between them.
+    Extended to the right edge of the chart so the projected level is visible.
+    """
+    m, b  = tl["slope"], tl["intercept"]
+    b_ch  = channel_intercept(df, tl, line_type)
+    n     = len(df)
+    x0    = tl["start_index"]
+    x1    = n - 1   # extend to right edge
+
+    xs     = np.array([x0, x1])
+    y_base = m * xs + b
+    y_chan = m * xs + b_ch
+
+    # shaded band
+    x_fill = np.arange(x0, x1 + 1)
+    ax.fill_between(x_fill, m * x_fill + b, m * x_fill + b_ch,
+                    alpha=0.07, color=color, zorder=1)
+
+    # base line (solid)
+    ax.plot(xs, y_base, color=color, linewidth=1.7,
+            linestyle=linestyle, alpha=0.90, zorder=4,
+            label=label if label else None)
+
+    # channel line (dashed, lighter)
+    ax.plot(xs, y_chan, color=color, linewidth=1.0,
+            linestyle="--", alpha=0.55, zorder=4)
+
+    # price label for channel line at right edge
+    ch_val_now = m * (n - 1) + b_ch
+    ax.text(n + 0.5, ch_val_now, f"{ch_val_now:.2f}",
+            color=color, fontsize=7, va="center", alpha=0.7, zorder=7)
 
 
 def draw_horizontal_zone(ax, zone: dict, color: str, chart_bars: int,
@@ -268,33 +310,33 @@ def main():
     for zone in vis_res_zones:
         draw_horizontal_zone(ax, zone, "#ff5252", n, dist_label(zone["center_price"]))
 
-    # 5. LT trendlines (solid) — current value + distance % in label
+    # 5. LT channels (solid base + dashed parallel + shaded band)
     for tl in vis_lt_sup:
-        draw_trendline(ax, tl, n, "#00e676", "-",
-                       f"LT Sup TL  {tl['current_value']:.2f}"
-                       f"  ({tl['touch_count']} touches)"
-                       f"{dist_label(tl['current_value'])}",
-                       price_lo, price_hi)
+        draw_channel(ax, tl, df, "#00e676", "-",
+                     f"LT Sup channel  {tl['current_value']:.2f}"
+                     f"  ({tl['touch_count']} touches)"
+                     f"{dist_label(tl['current_value'])}",
+                     line_type="support")
     for tl in vis_lt_res:
-        draw_trendline(ax, tl, n, "#ff5252", "-",
-                       f"LT Res TL  {tl['current_value']:.2f}"
-                       f"  ({tl['touch_count']} touches)"
-                       f"{dist_label(tl['current_value'])}",
-                       price_lo, price_hi)
+        draw_channel(ax, tl, df, "#ff5252", "-",
+                     f"LT Res channel  {tl['current_value']:.2f}"
+                     f"  ({tl['touch_count']} touches)"
+                     f"{dist_label(tl['current_value'])}",
+                     line_type="resistance")
 
-    # 6. ST trendlines (dashed)
+    # 6. ST channels (dashed base)
     for tl in vis_st_sup:
-        draw_trendline(ax, tl, n, "#69f0ae", "--",
-                       f"ST Sup TL  {tl['current_value']:.2f}"
-                       f"  ({tl['touch_count']} touches)"
-                       f"{dist_label(tl['current_value'])}",
-                       price_lo, price_hi)
+        draw_channel(ax, tl, df, "#69f0ae", "--",
+                     f"ST Sup channel  {tl['current_value']:.2f}"
+                     f"  ({tl['touch_count']} touches)"
+                     f"{dist_label(tl['current_value'])}",
+                     line_type="support")
     for tl in vis_st_res:
-        draw_trendline(ax, tl, n, "#ff8a80", "--",
-                       f"ST Res TL  {tl['current_value']:.2f}"
-                       f"  ({tl['touch_count']} touches)"
-                       f"{dist_label(tl['current_value'])}",
-                       price_lo, price_hi)
+        draw_channel(ax, tl, df, "#ff8a80", "--",
+                     f"ST Res channel  {tl['current_value']:.2f}"
+                     f"  ({tl['touch_count']} touches)"
+                     f"{dist_label(tl['current_value'])}",
+                     line_type="resistance")
 
     # 9. Current price
     ax.axhline(current_price, color="#ffeb3b", linewidth=0.9,
