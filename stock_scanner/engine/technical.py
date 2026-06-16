@@ -451,6 +451,12 @@ class MarketStructureEngine:
                 if term == "long":
                     strength_score += 15.0
 
+                # anchor_span: distance between the two pivots that defined the
+                # slope.  Used as a tiebreaker — a slope estimated from two
+                # widely-spaced pivots is far more reliable than one from two
+                # adjacent ones.
+                anchor_span = x2 - x1
+
                 candidates.append({
                     "type": f"{line_type}_trendline",
                     "term": term,
@@ -467,11 +473,13 @@ class MarketStructureEngine:
                     "reaction_strength": avg_reaction,
                     "distance_from_current_price": distance_pct,
                     "distance_pct": distance_pct,
-                    "strength_score": float(strength_score)
+                    "strength_score": float(strength_score),
+                    "anchor_span": anchor_span,
                 })
 
-        # Sort best first, then deduplicate lines that are nearly identical
-        candidates.sort(key=lambda x: x["strength_score"], reverse=True)
+        # Sort: strength_score descending, then anchor_span descending as
+        # tiebreaker so widely-anchored lines beat same-score short-anchor ones.
+        candidates.sort(key=lambda x: (x["strength_score"], x["anchor_span"]), reverse=True)
 
         filtered: List[Dict[str, Any]] = []
         for cand in candidates:
