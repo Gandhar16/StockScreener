@@ -341,27 +341,40 @@ class MarketStructureEngine:
         candidates: List[Dict[str, Any]] = []
         hw = self.window_size  # half-window for anchor snapping
 
-        def snap_anchor(idx: int) -> float:
-            """Return the actual extreme price in ±hw bars around idx."""
+        def snap_anchor(idx: int):
+            """
+            Return (true_idx, true_price) — the bar index and price of the
+            actual wick extreme within ±hw bars of idx.  Both x and y are
+            snapped so the trendline passes through the real candle extreme,
+            not just the detected pivot candle.
+            """
             lo = max(0, idx - hw)
             hi = min(n_days, idx + hw + 1)
+            sub = df['Low'].iloc[lo:hi] if line_type == "support" \
+                  else df['High'].iloc[lo:hi]
             if line_type == "support":
-                return float(df['Low'].iloc[lo:hi].min())
+                offset = int(sub.argmin())
+                return lo + offset, float(sub.iloc[offset])
             else:
-                return float(df['High'].iloc[lo:hi].max())
+                offset = int(sub.argmax())
+                return lo + offset, float(sub.iloc[offset])
 
         for i in range(len(local_pivots)):
             for j in range(i + 1, len(local_pivots)):
                 p1 = local_pivots[i]
                 p2 = local_pivots[j]
 
-                x1 = p1["index"]
-                x2 = p2["index"]
-                # Snap to the actual wick extreme in the neighbourhood so the
-                # line is anchored at the true high/low, not the detected pivot
-                # candle which may be slightly off when a neighbour bar is lower.
-                y1 = snap_anchor(x1)
-                y2 = snap_anchor(x2)
+                # Snap both anchors to the true wick extreme (index + price)
+                # so the line literally starts and ends at the lowest low /
+                # highest high in the neighbourhood of each detected pivot.
+                x1, y1 = snap_anchor(p1["index"])
+                x2, y2 = snap_anchor(p2["index"])
+
+                if x1 == x2:
+                    continue
+                # Ensure x1 < x2 after snapping (extremes may reorder)
+                if x1 > x2:
+                    x1, y1, x2, y2 = x2, y2, x1, y1
 
                 dx = x2 - x1
                 if dx == 0:
