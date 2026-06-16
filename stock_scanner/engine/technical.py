@@ -339,14 +339,29 @@ class MarketStructureEngine:
         prices_col = 'Low' if line_type == "support" else 'High'
 
         candidates: List[Dict[str, Any]] = []
+        hw = self.window_size  # half-window for anchor snapping
+
+        def snap_anchor(idx: int) -> float:
+            """Return the actual extreme price in ±hw bars around idx."""
+            lo = max(0, idx - hw)
+            hi = min(n_days, idx + hw + 1)
+            if line_type == "support":
+                return float(df['Low'].iloc[lo:hi].min())
+            else:
+                return float(df['High'].iloc[lo:hi].max())
 
         for i in range(len(local_pivots)):
             for j in range(i + 1, len(local_pivots)):
                 p1 = local_pivots[i]
                 p2 = local_pivots[j]
 
-                x1, y1 = p1["index"], p1["price"]
-                x2, y2 = p2["index"], p2["price"]
+                x1 = p1["index"]
+                x2 = p2["index"]
+                # Snap to the actual wick extreme in the neighbourhood so the
+                # line is anchored at the true high/low, not the detected pivot
+                # candle which may be slightly off when a neighbour bar is lower.
+                y1 = snap_anchor(x1)
+                y2 = snap_anchor(x2)
 
                 dx = x2 - x1
                 if dx == 0:
