@@ -173,7 +173,7 @@ def select_zones(zones: list, current_price: float,
 
 
 def select_trendlines(trendlines: list, current_price: float,
-                      side: str, max_keep: int = 2) -> list:
+                      side: str, max_keep: int = 1) -> list:
     """
     Return up to max_keep trendlines on the correct side of current price.
     Support trendlines must have current_value < current_price.
