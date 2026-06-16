@@ -43,6 +43,9 @@ dashboard/data.json
 # Jupyter
 .ipynb_checkpoints/
 
+# Claude Code local IDE settings
+.claude/
+
 # Secrets / keys
 .env
 *.env
