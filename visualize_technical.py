@@ -106,14 +106,10 @@ def draw_pivot_markers(ax, p_highs: list, p_lows: list,
 def draw_trendline(ax, tl: dict, df_len: int, color: str,
                    linestyle: str = "-", label: str = "",
                    y_lo: float = 0.0, y_hi: float = 1e9) -> None:
-    """
-    Draw the trendline and place a white-outlined circle at every touch point
-    so it's visually clear which candles anchor the line.
-    """
+    """Draw the trendline clipped to the visible price range."""
     m, b = tl["slope"], tl["intercept"]
     x0   = tl["start_index"]
 
-    # clip line to visible price range
     x1 = x0
     for xi in range(x0, df_len):
         yi = m * xi + b
@@ -125,15 +121,6 @@ def draw_trendline(ax, tl: dict, df_len: int, color: str,
     ax.plot([x0, x1], [m * x0 + b, m * x1 + b],
             color=color, linewidth=1.7, linestyle=linestyle,
             alpha=0.88, zorder=4, label=label if label else None)
-
-    # circle dots at each touch point on the line
-    for xi in tl.get("touch_index_list", []):
-        if 0 <= xi < df_len:
-            yi = m * xi + b
-            if y_lo * 0.92 <= yi <= y_hi * 1.08:
-                ax.scatter([xi], [yi], s=50, color=color, marker="o",
-                           zorder=8, linewidths=1.2, edgecolors="#ffffff",
-                           alpha=0.95)
 
 
 def draw_horizontal_zone(ax, zone: dict, color: str, chart_bars: int,
