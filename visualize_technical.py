@@ -30,10 +30,10 @@ from stock_scanner.engine.technical import MarketStructureEngine
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-PROXIMITY_PCT    = 0.15    # ±15 % of current price for normal filter
-MIN_TL_TOUCHES   = 3       # trendline must have at least this many pivot touches
-MIN_ZONE_PIVOTS  = 2       # zone must have at least this many pivot touches
-ST_FALLBACK_BARS = 63      # ~3 months of trading days for short-term fallback
+MIN_TL_TOUCHES   = 3   # trendline must have at least this many pivot touches
+MIN_ZONE_PIVOTS  = 2   # zone must have at least this many pivot touches
+MAX_SUP_ZONES    = 3   # max support zones to display (nearest below price)
+MAX_RES_ZONES    = 3   # max resistance zones to display (nearest above price)
 
 
 # ── drawing helpers ───────────────────────────────────────────────────────────
@@ -151,34 +151,46 @@ def format_x_axis(ax, df: pd.DataFrame, max_ticks: int = 10) -> None:
 
 # ── filtering helpers ─────────────────────────────────────────────────────────
 
-def filter_zones(zones: list, current_price: float, max_keep: int) -> list:
-    lo = current_price * (1 - PROXIMITY_PCT)
-    hi = current_price * (1 + PROXIMITY_PCT)
-    kept = [z for z in zones
-            if lo <= z["center_price"] <= hi
-            and z["touch_count"] >= MIN_ZONE_PIVOTS]
-    kept.sort(key=lambda z: z["strength_score"], reverse=True)
-    return kept[:max_keep]
+def select_zones(zones: list, current_price: float,
+                 side: str, max_keep: int) -> list:
+    """
+    Return up to max_keep zones on the requested side of current price.
+    side='support'    → zones below current price, sorted nearest first
+    side='resistance' → zones above current price, sorted nearest first
+    No proximity cutoff — distance is shown on the label instead.
+    """
+    if side == "support":
+        candidates = [z for z in zones
+                      if z["center_price"] < current_price
+                      and z["touch_count"] >= MIN_ZONE_PIVOTS]
+        candidates.sort(key=lambda z: z["center_price"], reverse=True)  # nearest first
+    else:
+        candidates = [z for z in zones
+                      if z["center_price"] > current_price
+                      and z["touch_count"] >= MIN_ZONE_PIVOTS]
+        candidates.sort(key=lambda z: z["center_price"])  # nearest first
+    return candidates[:max_keep]
 
 
-def filter_trendlines(trendlines: list, current_price: float) -> list:
-    lo = current_price * (1 - PROXIMITY_PCT)
-    hi = current_price * (1 + PROXIMITY_PCT)
-    kept = [tl for tl in trendlines
-            if lo <= tl["current_value"] <= hi
-            and tl["touch_count"] >= MIN_TL_TOUCHES]
-    kept.sort(key=lambda tl: tl["strength_score"], reverse=True)
-    return kept[:1]
-
-
-def nearest_support_zone(zones: list, current_price: float):
-    """Return the single closest support zone below current price."""
-    below = [z for z in zones
-             if z["center_price"] < current_price
-             and z["touch_count"] >= MIN_ZONE_PIVOTS]
-    if not below:
-        return None
-    return max(below, key=lambda z: z["center_price"])
+def select_trendlines(trendlines: list, current_price: float,
+                      side: str, max_keep: int = 2) -> list:
+    """
+    Return up to max_keep trendlines on the correct side of current price.
+    Support trendlines must have current_value < current_price.
+    Resistance trendlines must have current_value > current_price.
+    No proximity cutoff — distance is shown on the label instead.
+    """
+    if side == "support":
+        candidates = [tl for tl in trendlines
+                      if tl["current_value"] < current_price
+                      and tl["touch_count"] >= MIN_TL_TOUCHES]
+        candidates.sort(key=lambda tl: tl["current_value"], reverse=True)  # nearest first
+    else:
+        candidates = [tl for tl in trendlines
+                      if tl["current_value"] > current_price
+                      and tl["touch_count"] >= MIN_TL_TOUCHES]
+        candidates.sort(key=lambda tl: tl["current_value"])  # nearest first
+    return candidates[:max_keep]
 
 
 # ── main ─────────────────────────────────────────────────────────────────────
@@ -209,38 +221,12 @@ def main():
     result           = engine.analyze_structure(df)
     p_highs, p_lows  = engine._find_pivots(df)
 
-    vis_sup_zones = filter_zones(result["support_zones"],    current_price, 3)
-    vis_res_zones = filter_zones(result["resistance_zones"], current_price, 3)
-    vis_lt_sup    = filter_trendlines(result["long_term_support_trendlines"],    current_price)
-    vis_lt_res    = filter_trendlines(result["long_term_resistance_trendlines"], current_price)
-    vis_st_sup    = filter_trendlines(result["short_term_support_trendlines"],   current_price)
-    vis_st_res    = filter_trendlines(result["short_term_resistance_trendlines"],current_price)
-
-    # ── Support fallbacks ─────────────────────────────────────────────────
-    st_sup_zones_fallback = []   # short-term timeframe zones
-    nearest_sup_zone      = None # nearest zone regardless of distance
-
-    if not vis_sup_zones:
-        # Step 1: try 3-month data
-        short_bars = min(ST_FALLBACK_BARS, n)
-        df_short   = df.iloc[-short_bars:].copy()
-        print(f"  No nearby support – re-running on last {short_bars} bars ...")
-        result_short             = engine.analyze_structure(df_short)
-        _, p_lows_st             = engine._find_pivots(df_short)
-        st_sup_zones_fallback    = filter_zones(result_short["support_zones"], current_price, 3)
-
-        # Re-index ST pivots so they align on the full chart
-        offset_st   = n - short_bars
-        p_lows_st   = [{**p, "index": p["index"] + offset_st} for p in p_lows_st]
-        existing_l  = {x["index"] for x in p_lows}
-        p_lows      = p_lows + [p for p in p_lows_st if p["index"] not in existing_l]
-
-        # Step 2: if still nothing, show nearest support with distance label
-        if not st_sup_zones_fallback:
-            nearest_sup_zone = nearest_support_zone(result["support_zones"], current_price)
-            if nearest_sup_zone:
-                dist = (nearest_sup_zone["center_price"] - current_price) / current_price * 100
-                print(f"  Nearest support zone: {nearest_sup_zone['center_price']:.2f}  ({dist:.1f}%)")
+    vis_sup_zones = select_zones(result["support_zones"],    current_price, "support",    MAX_SUP_ZONES)
+    vis_res_zones = select_zones(result["resistance_zones"], current_price, "resistance", MAX_RES_ZONES)
+    vis_lt_sup    = select_trendlines(result["long_term_support_trendlines"],    current_price, "support")
+    vis_lt_res    = select_trendlines(result["long_term_resistance_trendlines"], current_price, "resistance")
+    vis_st_sup    = select_trendlines(result["short_term_support_trendlines"],   current_price, "support")
+    vis_st_res    = select_trendlines(result["short_term_resistance_trendlines"],current_price, "resistance")
 
     # ── Collect trendline touch indices for highlighted markers ───────────
     hl_low_idx  = set()
@@ -250,11 +236,12 @@ def main():
     for tl in vis_lt_res + vis_st_res:
         hl_high_idx.update(tl.get("touch_index_list", []))
 
+    def dist_label(price):
+        pct = (price - current_price) / current_price * 100
+        return f"  ({pct:+.1f}%)"
+
     print(f"  Context : {result['context']}")
-    print(f"  Visible -> sup zones={len(vis_sup_zones)} "
-          f"ST fallback={len(st_sup_zones_fallback)} "
-          f"nearest={'yes' if nearest_sup_zone else 'no'} | "
-          f"res zones={len(vis_res_zones)} | "
+    print(f"  Visible -> sup zones={len(vis_sup_zones)} res zones={len(vis_res_zones)} | "
           f"TL: LT sup={len(vis_lt_sup)} LT res={len(vis_lt_res)} "
           f"ST sup={len(vis_st_sup)} ST res={len(vis_st_res)}")
     print(f"  Pivots  -> highs={len(p_highs)} lows={len(p_lows)} | "
@@ -278,42 +265,40 @@ def main():
     draw_pivot_markers(ax, p_highs, p_lows,
                        hl_high_idx=hl_high_idx, hl_low_idx=hl_low_idx)
 
-    # 3. Support zones (proximity-filtered, green)
+    # 3. Support zones — nearest below price, always shown with distance %
     for zone in vis_sup_zones:
-        draw_horizontal_zone(ax, zone, "#00e676", n)
+        draw_horizontal_zone(ax, zone, "#00e676", n, dist_label(zone["center_price"]))
 
-    # 4. Short-term support zones (lighter green + [ST] tag)
-    for zone in st_sup_zones_fallback:
-        draw_horizontal_zone(ax, zone, "#b9f6ca", n, "  [ST]")
-
-    # 5. Nearest support zone (always shown, dashed if far away)
-    if nearest_sup_zone:
-        dist_pct = (nearest_sup_zone["center_price"] - current_price) / current_price * 100
-        draw_horizontal_zone(ax, nearest_sup_zone, "#69f0ae", n,
-                             f"  ({dist_pct:.1f}%)")
-
-    # 6. Resistance zones (red)
+    # 4. Resistance zones — nearest above price, always shown with distance %
     for zone in vis_res_zones:
-        draw_horizontal_zone(ax, zone, "#ff5252", n)
+        draw_horizontal_zone(ax, zone, "#ff5252", n, dist_label(zone["center_price"]))
 
-    # 7. LT trendlines (solid) — includes circle dots at touch points
+    # 5. LT trendlines (solid) — current value + distance % in label
     for tl in vis_lt_sup:
         draw_trendline(ax, tl, n, "#00e676", "-",
-                       f"LT Support TL  ({tl['touch_count']} touches)",
+                       f"LT Sup TL  {tl['current_value']:.2f}"
+                       f"  ({tl['touch_count']} touches)"
+                       f"{dist_label(tl['current_value'])}",
                        price_lo, price_hi)
     for tl in vis_lt_res:
         draw_trendline(ax, tl, n, "#ff5252", "-",
-                       f"LT Resistance TL  ({tl['touch_count']} touches)",
+                       f"LT Res TL  {tl['current_value']:.2f}"
+                       f"  ({tl['touch_count']} touches)"
+                       f"{dist_label(tl['current_value'])}",
                        price_lo, price_hi)
 
-    # 8. ST trendlines (dashed) — includes circle dots at touch points
+    # 6. ST trendlines (dashed)
     for tl in vis_st_sup:
         draw_trendline(ax, tl, n, "#69f0ae", "--",
-                       f"ST Support TL  ({tl['touch_count']} touches)",
+                       f"ST Sup TL  {tl['current_value']:.2f}"
+                       f"  ({tl['touch_count']} touches)"
+                       f"{dist_label(tl['current_value'])}",
                        price_lo, price_hi)
     for tl in vis_st_res:
         draw_trendline(ax, tl, n, "#ff8a80", "--",
-                       f"ST Resistance TL  ({tl['touch_count']} touches)",
+                       f"ST Res TL  {tl['current_value']:.2f}"
+                       f"  ({tl['touch_count']} touches)"
+                       f"{dist_label(tl['current_value'])}",
                        price_lo, price_hi)
 
     # 9. Current price
@@ -332,13 +317,6 @@ def main():
     if vis_sup_zones:
         zone_patches.append(mpatches.Patch(color="#00e676", alpha=0.45,
             label=f"Support zone  (x{len(vis_sup_zones)})"))
-    if st_sup_zones_fallback:
-        zone_patches.append(mpatches.Patch(color="#b9f6ca", alpha=0.45,
-            label=f"ST Support zone [3m]  (x{len(st_sup_zones_fallback)})"))
-    if nearest_sup_zone:
-        dist_pct = (nearest_sup_zone["center_price"] - current_price) / current_price * 100
-        zone_patches.append(mpatches.Patch(color="#69f0ae", alpha=0.45,
-            label=f"Nearest support  ({dist_pct:.1f}%)"))
     if vis_res_zones:
         zone_patches.append(mpatches.Patch(color="#ff5252", alpha=0.45,
             label=f"Resistance zone  (x{len(vis_res_zones)})"))
