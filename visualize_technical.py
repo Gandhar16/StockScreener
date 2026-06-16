@@ -31,9 +31,8 @@ from stock_scanner.engine.technical import MarketStructureEngine
 # ── constants ─────────────────────────────────────────────────────────────────
 
 MIN_TL_TOUCHES   = 3   # trendline must have at least this many pivot touches
-MIN_ZONE_PIVOTS  = 2   # zone must have at least this many pivot touches
-MAX_SUP_ZONES    = 3   # max support zones to display (nearest below price)
-MAX_RES_ZONES    = 3   # max resistance zones to display (nearest above price)
+MAX_SUP_ZONES    = 3   # nearest support zones to display (below price)
+MAX_RES_ZONES    = 3   # nearest resistance zones to display (above price)
 
 
 # ── drawing helpers ───────────────────────────────────────────────────────────
@@ -160,14 +159,10 @@ def select_zones(zones: list, current_price: float,
     No proximity cutoff — distance is shown on the label instead.
     """
     if side == "support":
-        candidates = [z for z in zones
-                      if z["center_price"] < current_price
-                      and z["touch_count"] >= MIN_ZONE_PIVOTS]
+        candidates = [z for z in zones if z["center_price"] < current_price]
         candidates.sort(key=lambda z: z["center_price"], reverse=True)  # nearest first
     else:
-        candidates = [z for z in zones
-                      if z["center_price"] > current_price
-                      and z["touch_count"] >= MIN_ZONE_PIVOTS]
+        candidates = [z for z in zones if z["center_price"] > current_price]
         candidates.sort(key=lambda z: z["center_price"])  # nearest first
     return candidates[:max_keep]
 
