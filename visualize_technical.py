@@ -52,58 +52,54 @@ def draw_candlesticks(ax, df: pd.DataFrame) -> None:
 
 
 def draw_pivot_markers(ax, p_highs: list, p_lows: list,
-                       price_range: float,
                        hl_high_idx: set = None,
                        hl_low_idx: set = None) -> None:
     """
-    Triangles at every swing high/low.
-    Pivots that belong to a visible trendline get a larger, brighter marker
-    so the connection between the line and its anchoring candles is obvious.
+    Circles placed exactly at the wick tip (High for swing highs, Low for
+    swing lows).  Pivots that anchor a visible trendline get a larger,
+    brighter circle with a white outline so the connection is obvious.
     """
-    offset = price_range * 0.007
-
     hl_high_idx = hl_high_idx or set()
     hl_low_idx  = hl_low_idx  or set()
 
-    # ── swing highs ──
-    # dim markers for all pivots first
+    # ── swing highs — circle at the High wick tip ──
     reg_h = [p for p in p_highs if p["index"] not in hl_high_idx]
     lit_h = [p for p in p_highs if p["index"] in hl_high_idx]
 
     if reg_h:
         ax.scatter([p["index"] for p in reg_h],
-                   [p["price"] + offset for p in reg_h],
-                   marker="v", color="#ff6b6b", s=22,
+                   [p["price"] for p in reg_h],
+                   marker="o", color="#ff6b6b", s=20,
                    zorder=6, alpha=0.75, linewidths=0)
     if lit_h:
         ax.scatter([p["index"] for p in lit_h],
-                   [p["price"] + offset for p in lit_h],
-                   marker="v", color="#ff1744", s=55,
-                   zorder=7, alpha=1.0, linewidths=0.8,
+                   [p["price"] for p in lit_h],
+                   marker="o", color="#ff1744", s=50,
+                   zorder=7, alpha=1.0, linewidths=1.2,
                    edgecolors="#ffffff", label="Swing High (TL anchor)")
 
-    # ── swing lows ──
+    # ── swing lows — circle at the Low wick tip ──
     reg_l = [p for p in p_lows if p["index"] not in hl_low_idx]
     lit_l = [p for p in p_lows if p["index"] in hl_low_idx]
 
     if reg_l:
         ax.scatter([p["index"] for p in reg_l],
-                   [p["price"] - offset for p in reg_l],
-                   marker="^", color="#69f0ae", s=22,
+                   [p["price"] for p in reg_l],
+                   marker="o", color="#69f0ae", s=20,
                    zorder=6, alpha=0.75, linewidths=0)
     if lit_l:
         ax.scatter([p["index"] for p in lit_l],
-                   [p["price"] - offset for p in lit_l],
-                   marker="^", color="#00e676", s=55,
-                   zorder=7, alpha=1.0, linewidths=0.8,
+                   [p["price"] for p in lit_l],
+                   marker="o", color="#00e676", s=50,
+                   zorder=7, alpha=1.0, linewidths=1.2,
                    edgecolors="#ffffff", label="Swing Low (TL anchor)")
 
-    # add legend entries for dim markers only if there are some
+    # legend entries for dim markers
     if reg_h:
-        ax.scatter([], [], marker="v", color="#ff6b6b", s=22,
+        ax.scatter([], [], marker="o", color="#ff6b6b", s=20,
                    alpha=0.75, linewidths=0, label="Swing High")
     if reg_l:
-        ax.scatter([], [], marker="^", color="#69f0ae", s=22,
+        ax.scatter([], [], marker="o", color="#69f0ae", s=20,
                    alpha=0.75, linewidths=0, label="Swing Low")
 
 
@@ -292,7 +288,7 @@ def main():
     draw_candlesticks(ax, df)
 
     # 2. Pivot markers — dim for all, bright+large for TL anchors
-    draw_pivot_markers(ax, p_highs, p_lows, price_range,
+    draw_pivot_markers(ax, p_highs, p_lows,
                        hl_high_idx=hl_high_idx, hl_low_idx=hl_low_idx)
 
     # 3. Support zones (proximity-filtered, green)

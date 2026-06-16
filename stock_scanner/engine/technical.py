@@ -102,6 +102,27 @@ class MarketStructureEngine:
                     "volume": float(df['Volume'].iloc[i])
                 })
 
+        # Deduplicate pivots that are within the window size of each other.
+        # Two highs at i and i+2 can both pass the check when High[i]==High[i+2]
+        # (overlapping windows, same value). Keep the one with the better price.
+        def _dedup(pivots: list, keep_max: bool) -> list:
+            if not pivots:
+                return pivots
+            result = [pivots[0]]
+            for p in pivots[1:]:
+                prev = result[-1]
+                if p["index"] - prev["index"] <= w:
+                    # too close — keep the one with the stronger price
+                    if (keep_max and p["price"] >= prev["price"]) or \
+                       (not keep_max and p["price"] <= prev["price"]):
+                        result[-1] = p
+                else:
+                    result.append(p)
+            return result
+
+        p_highs = _dedup(p_highs, keep_max=True)
+        p_lows  = _dedup(p_lows,  keep_max=False)
+
         return p_highs, p_lows
 
     def _build_horizontal_zones(
