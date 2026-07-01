@@ -414,6 +414,72 @@ body {
     font-weight: 700;
 }
 
+.action-sell {
+    color: #f87171;
+    font-weight: 700;
+}
+
+.action-watch {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+.badge.neutral {
+    background-color: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Sentiment badges */
+.badge.sentiment-bullish {
+    background-color: rgba(52, 211, 153, 0.12);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+}
+.badge.sentiment-bearish {
+    background-color: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+}
+.badge.sentiment-neutral {
+    background-color: rgba(156, 163, 175, 0.1);
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.25);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+}
+
+/* Conviction downgraded due to sentiment — amber warning */
+.sentiment-flagged {
+    color: #fbbf24;
+    font-weight: 700;
+}
+
+/* Portfolio call tracker cards */
+.portfolio-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.portfolio-card-val {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #f3f4f6;
+    margin-bottom: 4px;
+}
+.portfolio-card-lbl {
+    font-size: 10px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 /* Custom Scrollbar for modern feel */
 ::-webkit-scrollbar {
     width: 8px;

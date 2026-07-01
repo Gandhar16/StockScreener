@@ -36,9 +36,22 @@ reports/*.png
 reports/*.xlsx
 reports/*.csv
 reports/*.md
+reports/*.json
+reports/*.log
 
 # Dashboard generated data
 dashboard/data.json
+dashboard/equity_calls.json
+dashboard/lt_data.json
+dashboard/lt_portfolio.json
+dashboard/portfolio.json
+dashboard/smart_money.json
+
+# graphify output
+graphify-out/
+
+# Secrets / keys
+config/telegram.json
 
 # Jupyter
 .ipynb_checkpoints/
