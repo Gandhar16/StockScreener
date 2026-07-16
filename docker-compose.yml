@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  stock-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stock-scanner
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./reports:/app/reports
+      - ./config:/app/config
+    restart: unless-stopped
+    # Run daily at 6 AM UTC (adjust as needed)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 1G
+
+  # Optional: Dashboard development server
+  dashboard-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: stock-scanner-dashboard-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./dashboard:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    profiles:
+      - dev
+
+  # Optional: Prometheus for metrics (free, self-hosted)
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   profiles:
+  #     - monitoring
+
+  # Optional: Grafana for dashboards (free, self-hosted)
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./monitoring/grafana:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   profiles:
+  #     - monitoring

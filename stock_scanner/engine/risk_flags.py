@@ -89,6 +89,14 @@ def check_red_flags(
             total_penalty += 15.0
             flags.append(f"Poor Earnings Quality: 3-year FCF/Net Income of {fcf_net_inc_3y:.2f} suggests net income not backed by cash flow")
 
+    # 5b. High Accruals (Skip for Financials/Banks): earnings far ahead of
+    # operating cash relative to the asset base — classic Sloan-accruals risk.
+    if not is_financial:
+        accruals = metrics.get("accruals_ratio", float("nan"))
+        if not pd.isna(accruals) and accruals > 0.10:
+            total_penalty += 15.0
+            flags.append(f"High Accruals: (NI - OCF)/Assets of {accruals:.2f} exceeds 0.10 — earnings not cash-backed")
+
     # 6. Excessive Dilution
     shares_growth = metrics.get("shares_growth_3y", 0.0)
     if not pd.isna(shares_growth) and shares_growth > 0.15: # >15% over 3 years (~5% CAGR)

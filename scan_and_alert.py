@@ -43,6 +43,8 @@ from stock_scanner.engine.technical import MarketStructureEngine
 from stock_scanner.engine.patterns import PatternFinder
 from stock_scanner.engine.sentiment import SentimentEngine
 from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.trade_quality import enrich_trade_signal
+from stock_scanner.engine.relative_strength import rs_percentile, benchmark_for
 from visualize_technical import (compute_entry_signals, annotate_at_levels,
                                   select_zones, select_trendlines,
                                   find_fib_pivots, find_fib_pivots_bearish)
@@ -248,7 +250,7 @@ def update_universe(all_tickers: List[str], force: bool = False) -> Dict:
 
 # ── Technical scan ─────────────────────────────────────────────────────────────
 
-def run_technicals(ticker: str, period: str = "1y") -> Tuple[Optional[Dict], Optional[Dict], List, Dict, Dict]:
+def run_technicals(ticker: str, period: str = "2y") -> Tuple[Optional[Dict], Optional[Dict], List, Dict, Dict]:
     """Returns (best_bull, best_bear, all_patterns, structure_result, indicators)."""
     try:
         raw = yf.download(ticker, period=period, auto_adjust=True, progress=False)
@@ -319,8 +321,15 @@ def run_technicals(ticker: str, period: str = "1y") -> Tuple[Optional[Dict], Opt
                 "rr_t2": round((t2-entry)/risk, 2) if risk > 0 and t2>entry else 0,
                 "rr_t3": round((t3-entry)/risk, 2) if risk > 0 and t3>entry else 0,
             })
+            # Trader-grade enrichment: ATR stop, weekly MTF, RS, setup score,
+            # position size — recomputes risk_reward off the chosen stop.
+            enrich_trade_signal(best_bull, df, ticker, indic)
             if best_bull.get("risk_reward", 0) < MIN_RR:
                 best_bull = None
+            elif best_bull.get("rs_pass") is False and \
+                    best_bull.get("rs_mansfield", 0) is not None and \
+                    best_bull.get("rs_mansfield", 0) <= -20:
+                best_bull = None   # severe laggard — hard RS fail
 
         if bearish:
             best_bear = min(bearish, key=lambda p: (
@@ -341,6 +350,7 @@ def run_technicals(ticker: str, period: str = "1y") -> Tuple[Optional[Dict], Opt
                 "rr_t2": round((entry_s-t2_s)/risk_s, 2) if risk_s > 0 and t2_s<entry_s else 0,
                 "rr_t3": round((entry_s-t3_s)/risk_s, 2) if risk_s > 0 and t3_s<entry_s else 0,
             })
+            enrich_trade_signal(best_bear, df, ticker, indic)
             if best_bear.get("risk_reward", 0) < MIN_RR:
                 best_bear = None
 
@@ -619,6 +629,35 @@ def build_call_message(
         lines.append(f"  Swing  {price(sw_lo,cur)} → {price(sw_hi,cur)}")
     lines.append(f"  Horizon: {'1–4 weeks' if not forming else 'wait for breakout'}")
 
+    # ══ MULTI-TIMEFRAME & RELATIVE STRENGTH ═══════════════════════════════════
+    setup_sc   = sig.get("setup_score")
+    setup_gr   = sig.get("setup_grade")
+    mtf_sc     = sig.get("mtf_score")
+    mtf_ok     = sig.get("mtf_aligned")
+    rs_m       = sig.get("rs_mansfield")
+    rs_trend   = sig.get("rs_trend")
+    rs_rank    = sig.get("rs_percentile")
+    rvol_v     = sig.get("rvol")
+    pos_shares = sig.get("position_shares")
+    pos_risk   = sig.get("capital_at_risk")
+    stop_src   = sig.get("stop_source")
+
+    if any(v is not None for v in (setup_sc, mtf_sc, rs_m)):
+        lines += ["", "━━ 🧭 <b>MULTI-TIMEFRAME &amp; RS</b> ━━"]
+        if setup_sc is not None:
+            lines.append(f"Setup    <code>{bar(setup_sc, 100, 8)}</code>  <b>{setup_sc}/100</b>  Grade <b>{esc(setup_gr or '—')}</b>")
+        if mtf_sc is not None:
+            mtf_dot = "🟢" if mtf_ok else "🔴"
+            lines.append(f"Weekly   {mtf_dot} {'aligned' if mtf_ok else 'AGAINST setup'}  ({mtf_sc}/100)")
+        if rs_m is not None:
+            rs_dot = "🟢" if rs_m > 0 else ("🟡" if rs_m > -5 else "🔴")
+            rank_txt = f"  ·  RS rank <b>{rs_rank}</b>/99" if rs_rank else ""
+            lines.append(f"Rel Str  {rs_dot} Mansfield <b>{rs_m:+.1f}</b>  ({esc(rs_trend or '—')}){rank_txt}")
+        if rvol_v is not None:
+            lines.append(f"RVOL     ×{rvol_v:.1f} today's volume vs 20d avg")
+        if pos_shares:
+            lines.append(f"Size     <b>{pos_shares}</b> sh  ·  risk {price(pos_risk, cur)}  ·  stop via {esc(stop_src or 'pattern')}")
+
     # ══ VALUATION ═════════════════════════════════════════════════════════════
     val_label = "Undervalued" if (upside or 0) > 0 else "Overvalued"
     lines += [
@@ -749,26 +788,24 @@ def build_scan_summary(confirmed: List[Dict], total_scanned: int, duration_s: fl
                      f"  ·  {esc(best['conviction'])}  ·  {best.get('rr',0):.1f}× R:R")
         lines.append("")
 
+        def _summary_line(c):
+            icon  = "🔥" if c["conviction"]=="HIGH CONVICTION" else "✅" if c["conviction"]=="CONFIRMED" else "👀"
+            rr    = c.get("rr", 0) or 0
+            grade = c.get("setup_grade")
+            grade_txt = f"  ·  Setup <b>{esc(grade)}</b>" if grade else ""
+            return (f"  {icon}  <b>${esc(c['ticker'])}</b>"
+                    f"  ·  {esc(c['conviction'])}"
+                    f"  ·  {esc(c['pattern'][:22])}"
+                    f"  ·  {rr:.1f}× R:R{grade_txt}")
+
         if buys:
             lines.append(f"📈  <b>LONG  ({len(buys)})</b>")
-            for c in buys:
-                icon = "🔥" if c["conviction"]=="HIGH CONVICTION" else "✅" if c["conviction"]=="CONFIRMED" else "👀"
-                rr   = c.get("rr", 0) or 0
-                lines.append(f"  {icon}  <b>${esc(c['ticker'])}</b>"
-                              f"  ·  {esc(c['conviction'])}"
-                              f"  ·  {esc(c['pattern'][:22])}"
-                              f"  ·  {rr:.1f}× R:R")
+            lines += [_summary_line(c) for c in buys]
 
         if sells:
             lines.append("")
             lines.append(f"📉  <b>SHORT  ({len(sells)})</b>")
-            for c in sells:
-                icon = "🔥" if c["conviction"]=="HIGH CONVICTION" else "✅" if c["conviction"]=="CONFIRMED" else "👀"
-                rr   = c.get("rr", 0) or 0
-                lines.append(f"  {icon}  <b>${esc(c['ticker'])}</b>"
-                              f"  ·  {esc(c['conviction'])}"
-                              f"  ·  {esc(c['pattern'][:22])}"
-                              f"  ·  {rr:.1f}× R:R")
+            lines += [_summary_line(c) for c in sells]
 
     lines += ["", "📲  <i>Detailed reports follow below  ↓</i>", L]
     return "\n".join(lines)
@@ -778,7 +815,7 @@ def build_scan_summary(confirmed: List[Dict], total_scanned: int, duration_s: fl
 
 def scan_and_alert(
     all_tickers: List[str],
-    period: str = "1y",
+    period: str = "2y",
     force_refund: bool = False,
     send_telegram: bool = True,
     min_conviction: str = "CONFIRMED",
@@ -928,6 +965,19 @@ def scan_and_alert(
 
     print(f"\n  Done. {total_with_signal} tickers had a signal, {len(confirmed)} passed conviction filter.")
 
+    # ── RS percentile post-pass (IBD-style 1-99, per benchmark group) ─────────
+    if confirmed:
+        rs_vals = {c["ticker"]: c["_sig"].get("rs_mansfield") for c in confirmed}
+        groups  = {c["ticker"]: benchmark_for(c["ticker"]) for c in confirmed}
+        ranks   = rs_percentile(rs_vals, groups)
+        for c in confirmed:
+            c["_sig"]["rs_percentile"] = ranks.get(c["ticker"])
+            c["rs_percentile"] = ranks.get(c["ticker"])
+            c["setup_score"] = c["_sig"].get("setup_score")
+            c["setup_grade"] = c["_sig"].get("setup_grade")
+        # Triage order: best setups first
+        confirmed.sort(key=lambda c: -(c.get("setup_score") or 0))
+
     if not confirmed:
         print("  No confirmed calls found. Try --min-conviction SETUP to widen the filter.")
         if tg:
@@ -979,6 +1029,12 @@ def scan_and_alert(
         row["sentiment"]   = c["_sent"].get("sentiment_label")
         row["insider_signal"] = c["_insider"].get("signal")
         row["hf_signal"]   = c["_hf"].get("net_signal")
+        # Trader-grade context (additive)
+        for k in ("mtf_score", "mtf_aligned", "rs_mansfield", "rs_trend",
+                  "rvol", "trend_strength", "rsi_divergence",
+                  "pattern_stop", "stop_source", "stop_pct",
+                  "position_shares", "position_value", "capital_at_risk"):
+            row[k] = c["_sig"].get(k)
         save_payload.append(row)
 
     os.makedirs("reports", exist_ok=True)
@@ -996,7 +1052,7 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--tickers",          type=str, default=None,
                    help="Comma-separated tickers (default: full S&P 500)")
-    p.add_argument("--period",           type=str, default="1y")
+    p.add_argument("--period",           type=str, default="2y")
     p.add_argument("--min-conviction",   type=str, default="CONFIRMED",
                    choices=["HIGH CONVICTION", "CONFIRMED", "SETUP"])
     p.add_argument("--no-telegram",      action="store_true")

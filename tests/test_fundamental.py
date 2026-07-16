@@ -179,3 +179,62 @@ def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit_class, mock_too
     assert "rating" in row_msft
     assert "category" in row_msft
     assert len(row_msft["strengths"]) > 0
+
+    # V3 additive columns present
+    for col in ("accruals_ratio", "rev_cagr_stability", "piotroski_f",
+                "piotroski_max", "peer_valuation_percentile"):
+        assert col in results.columns, f"missing {col}"
+    assert "_w_valuation" not in results.columns  # internal, dropped
+
+    # Accruals for MSFT: NI 48, OCF 60 → negative accruals (cash-rich) — but
+    # balance sheet is empty in this mock so assets are NaN → accruals NaN.
+    assert pd.isna(row_msft["accruals_ratio"])
+
+    # Piotroski: NI>0, OCF>0, OCF>NI computable from mocked statements plus
+    # current-ratio trend → at least 4 signals computable, score ≥ 3
+    assert row_msft["piotroski_max"] >= 4
+    assert row_msft["piotroski_f"] >= 3
+
+
+class TestPeerPercentiles:
+    def test_cheapest_gets_highest_percentile(self):
+        df = pd.DataFrame({
+            "ticker": ["A", "B", "C", "D"],
+            "sector": ["Tech"] * 4,
+            "pe_ratio": [10.0, 20.0, 30.0, 40.0],
+            "ev_to_ebitda": [5.0, 10.0, 15.0, 20.0],
+        })
+        pct = FundamentalEngine.compute_peer_percentiles(df)
+        assert pct.iloc[0] > pct.iloc[1] > pct.iloc[2] > pct.iloc[3]
+
+    def test_small_group_is_nan(self):
+        df = pd.DataFrame({
+            "ticker": ["A", "B"],
+            "sector": ["Tech", "Tech"],
+            "pe_ratio": [10.0, 20.0],
+            "ev_to_ebitda": [5.0, 10.0],
+        })
+        pct = FundamentalEngine.compute_peer_percentiles(df)
+        assert pct.isna().all()
+
+    def test_groups_ranked_independently(self):
+        df = pd.DataFrame({
+            "ticker": list("ABCDEFGH"),
+            "sector": ["Tech"] * 4 + ["Energy"] * 4,
+            "pe_ratio": [10, 20, 30, 40, 5, 8, 12, 16],
+            "ev_to_ebitda": [None] * 8,
+        })
+        pct = FundamentalEngine.compute_peer_percentiles(df)
+        # cheapest in each sector gets that sector's top rank
+        assert pct.iloc[0] == pct.iloc[4]
+
+    def test_negative_multiples_ignored(self):
+        df = pd.DataFrame({
+            "ticker": ["A", "B", "C", "D", "E"],
+            "sector": ["Tech"] * 5,
+            "pe_ratio": [-5.0, 10.0, 20.0, 30.0, 40.0],
+            "ev_to_ebitda": [None] * 5,
+        })
+        pct = FundamentalEngine.compute_peer_percentiles(df)
+        assert pd.isna(pct.iloc[0])       # loss-maker: no meaningful P/E rank
+        assert pct.iloc[1] > pct.iloc[4]

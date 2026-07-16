@@ -39,6 +39,8 @@ from stock_scanner.engine.technical import MarketStructureEngine
 from stock_scanner.engine.patterns import PatternFinder
 from stock_scanner.engine.sentiment import SentimentEngine
 from stock_scanner.engine.calls_db import upsert_call, export_portfolio_json
+from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.trade_quality import enrich_trade_signal
 from visualize_technical import (compute_entry_signals, annotate_at_levels,
                                   select_zones, select_trendlines,
                                   find_fib_pivots, find_fib_pivots_bearish,
@@ -258,7 +260,7 @@ def compute_fib_targets_bearish(df: pd.DataFrame, p_highs: list, p_lows: list,
 
 # ── technical helpers ─────────────────────────────────────────────────────────
 
-def run_technicals(ticker: str, period: str = "1y",
+def run_technicals(ticker: str, period: str = "2y",
                    make_chart: bool = False) -> Tuple[Optional[Dict], Optional[Dict], List[Dict], Dict]:
     """
     Download OHLCV, run pattern detection, and return:
@@ -267,12 +269,14 @@ def run_technicals(ticker: str, period: str = "1y",
     try:
         raw = yf.download(ticker, period=period, auto_adjust=True, progress=False)
         if raw.empty:
-            return None, [], {}
+            return None, None, [], {}
         if isinstance(raw.columns, pd.MultiIndex):
             raw.columns = raw.columns.get_level_values(0)
         df = raw[["Open", "High", "Low", "Close", "Volume"]].dropna()
         if len(df) < 30:
-            return None, [], {}
+            return None, None, [], {}
+
+        indic = compute_indicators(df)
 
         engine  = MarketStructureEngine(window_size=5, tolerance_pct=0.015)
         finder  = PatternFinder(price_tolerance=0.03, min_pullback=0.03,
@@ -286,7 +290,7 @@ def run_technicals(ticker: str, period: str = "1y",
         if not patterns:
             return None, None, [], result
 
-        compute_entry_signals(patterns, df)
+        compute_entry_signals(patterns, df, indicators=indic)
 
         current = float(df["Close"].iloc[-1])
         vis_sup = select_zones(result.get("support_zones",    []), current, "support",    3)
@@ -341,6 +345,7 @@ def run_technicals(ticker: str, period: str = "1y",
             best_bull["risk_reward"]  = _rr_bull(t1)
             best_bull["rr_t2"]        = _rr_bull(t2)
             best_bull["rr_t3"]        = _rr_bull(t3)
+            enrich_trade_signal(best_bull, df, ticker, indic)
 
         if bearish:
             best_bear = min(bearish,
@@ -367,6 +372,7 @@ def run_technicals(ticker: str, period: str = "1y",
             best_bear["risk_reward"]  = _rr_bear(t1_s)
             best_bear["rr_t2"]        = _rr_bear(t2_s)
             best_bear["rr_t3"]        = _rr_bear(t3_s)
+            enrich_trade_signal(best_bear, df, ticker, indic)
 
         if make_chart:
             try:
@@ -406,20 +412,45 @@ def sentiment_adjust(conviction: str, sentiment_label: str, call_type: str) -> T
     return new, flagged
 
 
+# Additive trader-grade fields copied from an enriched signal into call JSON.
+_TRADER_FIELD_KEYS = (
+    "pattern_score", "setup_score", "setup_grade",
+    "mtf_score", "mtf_aligned",
+    "rs_mansfield", "rs_trend", "rs_percentile",
+    "rvol", "trend_strength", "rsi_divergence",
+    "pattern_stop", "stop_source", "stop_pct",
+    "position_shares", "position_value", "capital_at_risk",
+)
+
+def _trader_fields(sig: Dict) -> Dict:
+    return {k: sig.get(k) for k in _TRADER_FIELD_KEYS if k in sig}
+
+
 # ── conviction label ──────────────────────────────────────────────────────────
 
 def swing_conviction(sig: Dict) -> str:
     """
-    Conviction tier based on composite pattern_score (when available)
-    or falls back to the original vol + level + R:R heuristic.
+    Conviction tier — three-level fallback chain:
 
-    Composite score thresholds (0-100):
-      HIGH CONVICTION  ≥ 62  — multiple confirming factors aligned
-      CONFIRMED        ≥ 42  — most factors agree
-      SETUP            ≥ 0   — pattern exists, incomplete confirmation
+    1. setup_score (trader-grade composite: pattern + weekly MTF + relative
+       strength + volume + R:R) when present:
+         HIGH CONVICTION  ≥ 70  AND weekly trend not against setup AND rr ≥ 2.0
+         CONFIRMED        ≥ 58  AND rr ≥ 1.5
+         SETUP            otherwise
+    2. pattern_score (older composite) when setup_score absent.
+    3. Original vol + level + R:R heuristic.
     """
     score = sig.get("pattern_score")
     rr    = sig.get("risk_reward", 0) or 0
+
+    setup = sig.get("setup_score")
+    if setup is not None:
+        mtf_against = sig.get("mtf_aligned") is False
+        if setup >= 70 and not mtf_against and rr >= 2.0:
+            return "HIGH CONVICTION"
+        if setup >= 58 and rr >= 1.5:
+            return "CONFIRMED"
+        return "SETUP"
 
     if score is not None:
         if score >= 62 and rr >= 1.8:
@@ -477,8 +508,8 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--tickers", type=str, default=None,
                    help="Comma-separated tickers, e.g. AAPL,MSFT,RELIANCE.NS")
-    p.add_argument("--period",  type=str, default="1y",
-                   help="Price history period for technical analysis (default: 1y)")
+    p.add_argument("--period",  type=str, default="2y",
+                   help="Price history period for technical analysis (default: 2y — needed for weekly MTF + RS)")
     p.add_argument("--no-fundamentals", action="store_true",
                    help="Skip fundamental screen, show technical-only swing calls")
     p.add_argument("--no-sentiment", action="store_true",
@@ -707,6 +738,7 @@ def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
                 "news_count":        sent_count,
                 "top_headlines":     sent_headlines,
             }
+            swing_call.update(_trader_fields(best_sig))
             swing_calls.append(swing_call)
 
         # ── Sell call ─────────────────────────────────────────────────────────
@@ -766,16 +798,19 @@ def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
                 "news_count":        sent_count,
                 "top_headlines":     sent_headlines,
             }
+            sell_call.update(_trader_fields(best_sell))
             sell_calls.append(sell_call)
 
     # Sort
     long_term_calls.sort(key=lambda c: -(c.get("fund_score", 0)))
     swing_calls.sort(key=lambda c: (
         {"HIGH CONVICTION": 0, "CONFIRMED": 1, "SETUP": 2}.get(c["conviction"], 3),
+        -(c.get("setup_score") or 0),
         -c["risk_reward"]
     ))
     sell_calls.sort(key=lambda c: (
         {"HIGH CONVICTION": 0, "CONFIRMED": 1, "SETUP": 2}.get(c["conviction"], 3),
+        -(c.get("setup_score") or 0),
         -c["risk_reward"]
     ))
 

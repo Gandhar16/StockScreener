@@ -38,6 +38,9 @@ reports/*.csv
 reports/*.md
 reports/*.json
 reports/*.log
+reports/*.pkl
+reports/*.db
+reports/.cache/
 
 # Dashboard generated data
 dashboard/data.json
@@ -52,6 +55,9 @@ graphify-out/
 
 # Secrets / keys
 config/telegram.json
+.env
+*.env
+secrets.py
 
 # Jupyter
 .ipynb_checkpoints/
@@ -59,7 +65,15 @@ config/telegram.json
 # Claude Code local IDE settings
 .claude/
 
-# Secrets / keys
-.env
-*.env
-secrets.py
+# Docker
+.docker/
+
+# TypeScript / Vite
+dashboard/node_modules/
+dashboard/dist/
+dashboard/*.local
+dashboard/.env*
+
+# Logs
+*.log
+logs/

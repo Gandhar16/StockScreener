@@ -45,6 +45,11 @@ from stock_scanner.engine.patterns import PatternFinder
 
 # ── re-use the entry signal logic from visualize_technical ───────────────────
 from visualize_technical import compute_entry_signals
+from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.mtf import analyze_mtf
+from stock_scanner.engine.relative_strength import mansfield_rs, rs_gate
+from stock_scanner.engine.trade_quality import (choose_stop, position_size,
+                                                risk_reward, setup_score)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -84,7 +89,9 @@ PHASES = [
 INITIAL_CAPITAL   = 100_000.0
 TOP_N_FUNDAMENTAL = 15   # how many pass fundamental filter
 MAX_POSITIONS     = 10   # max concurrent holdings
-PRICE_HISTORY_BARS = 252 # bars of OHLCV to feed the pattern engine (~1 yr)
+PRICE_HISTORY_BARS = 504 # bars of OHLCV (~2 yr — weekly MTF needs 30wk SMA + RS needs 252d)
+RISK_PER_TRADE    = 0.01 # fraction of capital risked per trade (stop-based sizing)
+MAX_POSITION_PCT  = 0.15 # notional cap per position
 
 # Signal priority: lower = better
 SIGNAL_RANK = {"BUY": 0, "BUY?": 1, "WATCH-LONG": 2}
@@ -124,15 +131,24 @@ def ohlcv_for(price_df: pd.DataFrame, ticker: str,
         return pd.DataFrame()
 
 
-def get_technical_signal(ticker: str, df: pd.DataFrame
+def get_technical_signal(ticker: str, df: pd.DataFrame,
+                         bench_close: Optional[pd.Series] = None
                          ) -> Optional[Dict[str, Any]]:
     """
-    Run the full pattern + signal pipeline on a historical OHLCV slice.
-    Returns the best bullish signal dict, or None if no bullish setup exists.
+    Run the full pattern + signal pipeline on a historical OHLCV slice,
+    then apply the trader-grade gates:
+      - weekly multi-timeframe alignment (daily setup must not fight the
+        weekly trend)
+      - relative strength vs benchmark (no severe laggards)
+      - ATR-vs-pattern stop selection
+    Returns the best bullish signal dict (with `reject_reason` set and the
+    dict returned as None if a gate fails), or None if no bullish setup exists.
     """
     if len(df) < 30:
         return None
     try:
+        indic = compute_indicators(df)
+
         engine  = MarketStructureEngine(window_size=5, tolerance_pct=0.015)
         finder  = PatternFinder(price_tolerance=0.03, min_pullback=0.03,
                                 recent_candle_bars=15, recent_chart_bars=30)
@@ -141,7 +157,7 @@ def get_technical_signal(ticker: str, df: pd.DataFrame
         patterns += finder.find_forming(df, p_highs, p_lows)
         if not patterns:
             return None
-        compute_entry_signals(patterns, df)
+        compute_entry_signals(patterns, df, indicators=indic)
 
         # keep only bullish signals with a valid entry price
         bullish = [p for p in patterns
@@ -151,10 +167,45 @@ def get_technical_signal(ticker: str, df: pd.DataFrame
         if not bullish:
             return None
 
-        # pick best by signal rank, then by recency
+        # pick best by signal rank, then pattern quality, then recency
         best = min(bullish,
                    key=lambda p: (SIGNAL_RANK[p["signal"]],
+                                  -(p.get("pattern_score") or 0),
                                   -p["completed_bar"]))
+
+        # ── Gate 1: weekly trend must not be against the setup ──────────────
+        mtf = analyze_mtf(df, "bullish")
+        best["mtf_score"] = mtf.get("mtf_score")
+        best["mtf_aligned"] = mtf.get("mtf_aligned")
+        if mtf.get("mtf_aligned") is False:
+            logger.info(f"  {ticker}: rejected — weekly trend against setup "
+                        f"(MTF {mtf.get('mtf_score')}/100)")
+            return None
+
+        # ── Gate 2: relative strength (skip severe laggards) ────────────────
+        rs = mansfield_rs(df["Close"], bench_close) if bench_close is not None \
+            else {"rs_mansfield": None, "rs_trend": None}
+        gate = rs_gate("bullish", rs)
+        best["rs_mansfield"] = rs.get("rs_mansfield")
+        best["rs_trend"] = rs.get("rs_trend")
+        if gate.get("rs_pass") is False and (rs.get("rs_mansfield") or 0) <= -20:
+            logger.info(f"  {ticker}: rejected — {gate.get('rs_reason')}")
+            return None
+
+        # ── Stop upgrade: tighter of pattern vs 2×ATR, noise-guarded ────────
+        stop_res = choose_stop(best["entry_price"], best["stop_loss"],
+                               indic.get("atr"), "bullish")
+        if stop_res["stop"] is not None:
+            best["pattern_stop"] = best["stop_loss"]
+            best["stop_loss"] = stop_res["stop"]
+            best["stop_source"] = stop_res["stop_source"]
+
+        # Composite setup score for ranking
+        rr = risk_reward(best["entry_price"], best["stop_loss"],
+                         best.get("t1") or best.get("swing_target"), "bullish")
+        ss = setup_score(best.get("pattern_score"), mtf, rs, indic, rr, best)
+        best["setup_score"] = ss["setup_score"]
+        best["setup_grade"] = ss["setup_grade"]
         return best
     except Exception as e:
         logger.warning(f"Technical analysis failed for {ticker}: {e}")
@@ -320,15 +371,19 @@ def run_pipeline():
 
         # ── Stage 2: Technical confirmation ─────────────────────────────────
         logger.info("Stage 2: Technical filter ...")
+        try:
+            bench_hist = price_df["Close"]["^GSPC"].loc[:p_start].dropna()
+        except Exception:
+            bench_hist = None
         confirmed: List[Dict[str, Any]] = []
         for ticker in top_candidates:
             df_hist = ohlcv_for(price_df, ticker, p_start)
             if df_hist.empty:
                 logger.debug(f"  {ticker}: no OHLCV history")
                 continue
-            sig = get_technical_signal(ticker, df_hist)
+            sig = get_technical_signal(ticker, df_hist, bench_close=bench_hist)
             if sig is None:
-                logger.info(f"  {ticker}: no bullish pattern — skipped")
+                logger.info(f"  {ticker}: no qualifying bullish setup — skipped")
                 continue
             fund_row = eligible[eligible["ticker"] == ticker].iloc[0]
             confirmed.append({
@@ -340,6 +395,11 @@ def run_pipeline():
                 "risk_pct":     sig.get("risk_pct", 0.0),
                 "vol_confirmed": sig.get("vol_confirmed", False),
                 "fund_score":   round(float(fund_row["total_score"]), 1),
+                "setup_score":  sig.get("setup_score"),
+                "setup_grade":  sig.get("setup_grade"),
+                "mtf_score":    sig.get("mtf_score"),
+                "rs_mansfield": sig.get("rs_mansfield"),
+                "stop_source":  sig.get("stop_source"),
             })
             logger.info(f"  {ticker}: {sig['signal']:12s}  pattern={sig['name']:<24s}"
                         f"  entry={sig['entry_price']:.2f}  stop={sig['stop_loss']:.2f}"
@@ -349,20 +409,32 @@ def run_pipeline():
             logger.warning("No technically confirmed stocks for this phase.")
             continue
 
-        # Sort by signal quality then fundamental score
-        confirmed.sort(key=lambda x: (SIGNAL_RANK.get(x["signal"], 9),
+        # Sort by setup quality (composite), then signal rank, then fund score
+        confirmed.sort(key=lambda x: (-(x.get("setup_score") or 0),
+                                       SIGNAL_RANK.get(x["signal"], 9),
                                        -x["fund_score"]))
         selected = confirmed[:MAX_POSITIONS]
         logger.info(f"  Selected {len(selected)} positions for phase.")
 
         # ── Stage 3: Simulate trades ─────────────────────────────────────────
         logger.info("Stage 3: Simulating trades ...")
-        allocation = current_cash / len(selected)
+        equal_allocation = current_cash / len(selected)
         phase_holdings: List[Dict] = []
 
         trading_days = price_df["Close"].loc[p_start:p_end].dropna(how="all").index
 
         for stock in selected:
+            # Fixed-fractional sizing: risk RISK_PER_TRADE of capital per
+            # trade based on stop distance, notional-capped; residual stays
+            # cash. Falls back to equal weight if sizing degenerates.
+            ps = position_size(current_cash, RISK_PER_TRADE,
+                               stock["entry_price"], stock["stop_loss"],
+                               max_position_pct=MAX_POSITION_PCT)
+            allocation = ps["position_value"] or min(equal_allocation,
+                                                     current_cash * MAX_POSITION_PCT)
+            if allocation <= 0:
+                logger.info(f"  {stock['ticker']}: position sized to zero — skipped")
+                continue
             trade = simulate_trade(
                 price_df=price_df,
                 ticker=stock["ticker"],
@@ -380,6 +452,12 @@ def run_pipeline():
             trade["pattern"]       = stock["pattern"]
             trade["fund_score"]    = stock["fund_score"]
             trade["vol_confirmed"] = stock["vol_confirmed"]
+            trade["setup_score"]   = stock.get("setup_score")
+            trade["setup_grade"]   = stock.get("setup_grade")
+            trade["mtf_score"]     = stock.get("mtf_score")
+            trade["rs_mansfield"]  = stock.get("rs_mansfield")
+            trade["stop_source"]   = stock.get("stop_source")
+            trade["capital_at_risk"] = ps.get("capital_at_risk")
             phase_holdings.append(trade)
             trade_logs.append(trade)
 
@@ -402,9 +480,14 @@ def run_pipeline():
 
         day_nav = daily_portfolio_values(phase_holdings, price_df, trading_days)
 
+        # Risk-based sizing leaves part of the capital uninvested — that idle
+        # cash is still part of the portfolio and must be carried in the NAV.
+        invested = sum(h["shares"] * h["entry_price"] for h in phase_holdings)
+        idle_cash = max(0.0, current_cash - invested)
+
         for day in trading_days:
             ds = day.strftime("%Y-%m-%d")
-            port_val = day_nav.get(ds, 0.0)
+            port_val = day_nav.get(ds, 0.0) + idle_cash
             try:
                 bench_val = benchmark_shares * float(price_df["Close"]["^GSPC"].loc[day])
             except Exception:

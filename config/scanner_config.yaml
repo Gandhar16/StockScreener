@@ -65,6 +65,39 @@ scoring_ranges:
 batch:
   size: 5
   delay_seconds: 15.0
+# ── V3 trader-grade technical settings (all keys optional — coded defaults
+#    apply when absent) ─────────────────────────────────────────────────────
+technical:
+  history_period: 2y          # 2y needed for 30-week SMA + 252d Mansfield RS
+  mtf:
+    aligned_threshold: 55     # weekly alignment score needed to count as aligned
+  rs:
+    benchmark_map:
+      .NS: ^NSEI              # NSE India -> NIFTY 50
+      .BO: ^BSESN             # BSE India -> SENSEX
+    default_benchmark: ^GSPC  # everything else -> S&P 500
+    soft_floor: -5.0          # bull setups need Mansfield RS above this (or improving)
+    hard_floor: -20.0         # below this = severe laggard, hard reject
+  gates:
+    account_size: 100000
+    risk_per_trade_pct: 0.01  # risk 1% of capital per trade
+    atr_stop_mult: 2.0
+    min_stop_pct: 0.02        # stops tighter than 2% are inside noise
+    max_stop_pct: 0.10
+    max_position_pct: 0.15
+    min_rr_high_conviction: 2.0
+    min_rr_floor: 1.5
+  setup_score:
+    weights:
+      pattern: 0.35
+      mtf: 0.20
+      rs: 0.15
+      volume: 0.15
+      rr: 0.15
+fundamental_extras:
+  accruals_red_flag_threshold: 0.10
+  peer_percentile_min_group: 4
+  peer_valuation_blend: 0.5   # 50/50 absolute vs sector-relative valuation
 sector_profiles:
   Technology:
     filters:

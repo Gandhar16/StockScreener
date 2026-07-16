@@ -42,6 +42,162 @@ def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return tr.rolling(period, min_periods=period).mean()
 
 
+def ema(close: pd.Series, period: int) -> pd.Series:
+    return close.ewm(span=period, min_periods=period).mean()
+
+
+def bollinger(close: pd.Series, period: int = 20,
+              num_std: float = 2.0) -> Dict[str, pd.Series]:
+    mid   = close.rolling(period, min_periods=period).mean()
+    std   = close.rolling(period, min_periods=period).std()
+    upper = mid + num_std * std
+    lower = mid - num_std * std
+    bandwidth = (upper - lower) / mid.replace(0, np.nan)
+    percent_b = (close - lower) / (upper - lower).replace(0, np.nan)
+    return {"mid": mid, "upper": upper, "lower": lower,
+            "bandwidth": bandwidth, "percent_b": percent_b}
+
+
+def bollinger_squeeze(bandwidth: pd.Series, lookback: int = 120) -> Optional[bool]:
+    """True when current bandwidth sits in the lowest decile of the lookback
+    window — volatility compression that often precedes an expansion move."""
+    bw = bandwidth.dropna()
+    if len(bw) < lookback // 2:
+        return None
+    window = bw.iloc[-lookback:]
+    return bool(bw.iloc[-1] <= window.quantile(0.10))
+
+
+def adx(df: pd.DataFrame, period: int = 14) -> Dict[str, pd.Series]:
+    """ADX with +DI/−DI using Wilder smoothing (ewm alpha=1/period)."""
+    high, low, close = df["High"], df["Low"], df["Close"]
+    up   = high.diff()
+    down = -low.diff()
+    plus_dm  = pd.Series(np.where((up > down) & (up > 0), up, 0.0), index=high.index)
+    minus_dm = pd.Series(np.where((down > up) & (down > 0), down, 0.0), index=high.index)
+    tr = pd.concat(
+        [high - low, (high - close.shift(1)).abs(), (low - close.shift(1)).abs()],
+        axis=1,
+    ).max(axis=1)
+    alpha = 1.0 / period
+    atr_w = tr.ewm(alpha=alpha, min_periods=period).mean()
+    plus_di  = 100 * plus_dm.ewm(alpha=alpha, min_periods=period).mean() / atr_w.replace(0, np.nan)
+    minus_di = 100 * minus_dm.ewm(alpha=alpha, min_periods=period).mean() / atr_w.replace(0, np.nan)
+    dx  = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx_s = dx.ewm(alpha=alpha, min_periods=period).mean()
+    return {"adx": adx_s, "plus_di": plus_di, "minus_di": minus_di}
+
+
+def stochastic(df: pd.DataFrame, k: int = 14, d: int = 3,
+               smooth: int = 3) -> Dict[str, pd.Series]:
+    low_k  = df["Low"].rolling(k, min_periods=k).min()
+    high_k = df["High"].rolling(k, min_periods=k).max()
+    raw_k  = 100 * (df["Close"] - low_k) / (high_k - low_k).replace(0, np.nan)
+    k_s = raw_k.rolling(smooth, min_periods=smooth).mean()
+    d_s = k_s.rolling(d, min_periods=d).mean()
+    return {"k": k_s, "d": d_s}
+
+
+def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
+    direction = np.sign(close.diff()).fillna(0)
+    return (direction * volume).cumsum()
+
+
+def obv_trend(obv_s: pd.Series, lookback: int = 20) -> Optional[str]:
+    """Classify OBV as rising / falling / flat via normalized linreg slope."""
+    seg = obv_s.dropna().iloc[-lookback:]
+    if len(seg) < lookback:
+        return None
+    x = np.arange(len(seg), dtype=float)
+    slope = np.polyfit(x, seg.values.astype(float), 1)[0]
+    scale = seg.abs().mean() or 1.0
+    norm = slope * lookback / scale
+    if norm > 0.02:
+        return "rising"
+    if norm < -0.02:
+        return "falling"
+    return "flat"
+
+
+def rvol(volume: pd.Series, lookback: int = 20) -> Optional[float]:
+    """Relative volume: latest bar vs prior lookback average."""
+    if len(volume) < lookback + 1:
+        return None
+    prior = float(volume.iloc[-(lookback + 1):-1].mean())
+    if prior <= 0:
+        return None
+    return float(volume.iloc[-1]) / prior
+
+
+def pct_from_52w_high(close: pd.Series) -> Optional[float]:
+    """Percent below the 52-week (252-bar) high; 0.0 = at the high."""
+    window = close.iloc[-252:] if len(close) >= 60 else None
+    if window is None:
+        return None
+    hi = float(window.max())
+    if hi <= 0:
+        return None
+    return (hi - float(close.iloc[-1])) / hi * 100.0
+
+
+def ema_stack(close: pd.Series) -> Dict:
+    """20/50/200 EMA alignment + normalized 20-bar slope of the 50 EMA."""
+    e20, e50, e200 = ema(close, 20), ema(close, 50), ema(close, 200)
+
+    def _last(s):
+        v = s.iloc[-1] if len(s) else np.nan
+        return float(v) if not pd.isna(v) else None
+
+    v20, v50, v200 = _last(e20), _last(e50), _last(e200)
+    px = float(close.iloc[-1])
+    stacked_bull = (v20 is not None and v50 is not None and v200 is not None
+                    and px > v20 > v50 > v200)
+    stacked_bear = (v20 is not None and v50 is not None and v200 is not None
+                    and px < v20 < v50 < v200)
+    slope = None
+    seg = e50.dropna().iloc[-20:]
+    if len(seg) == 20:
+        x = np.arange(20, dtype=float)
+        raw = np.polyfit(x, seg.values.astype(float), 1)[0]
+        slope = raw * 20 / (float(seg.mean()) or 1.0)  # ≈ pct change over 20 bars
+    return {"ema20": v20, "ema50": v50, "ema200": v200,
+            "stacked_bull": stacked_bull, "stacked_bear": stacked_bear,
+            "ema50_slope": slope}
+
+
+def rsi_divergence(close: pd.Series, rsi_s: pd.Series,
+                   lookback: int = 60, order: int = 5) -> Optional[str]:
+    """
+    Detect classic RSI divergence over the lookback window.
+    'bearish': price makes a higher high while RSI makes a lower high.
+    'bullish': price makes a lower low while RSI makes a higher low.
+    Returns None when there is no divergence or not enough data.
+    """
+    c = close.dropna().iloc[-lookback:]
+    r = rsi_s.reindex(c.index)
+    if len(c) < lookback // 2:
+        return None
+
+    vals = c.values.astype(float)
+    highs, lows = [], []
+    for i in range(order, len(vals) - order):
+        seg = vals[i - order:i + order + 1]
+        if vals[i] == seg.max() and (seg == vals[i]).sum() == 1:
+            highs.append(i)
+        if vals[i] == seg.min() and (seg == vals[i]).sum() == 1:
+            lows.append(i)
+
+    if len(highs) >= 2:
+        i1, i2 = highs[-2], highs[-1]
+        if vals[i2] > vals[i1] and float(r.iloc[i2]) < float(r.iloc[i1]) - 1e-9:
+            return "bearish"
+    if len(lows) >= 2:
+        i1, i2 = lows[-2], lows[-1]
+        if vals[i2] < vals[i1] and float(r.iloc[i2]) > float(r.iloc[i1]) + 1e-9:
+            return "bullish"
+    return None
+
+
 def compute_indicators(df: pd.DataFrame) -> Dict:
     """
     Compute all indicators once for a price DataFrame.
@@ -82,6 +238,29 @@ def compute_indicators(df: pd.DataFrame) -> Dict:
     vol_prior  = float(df["Volume"].iloc[-20:-5].mean()) if n >= 20 else float(df["Volume"].mean())
     vol_contracting = vol_recent < vol_prior * 0.90 if vol_prior > 0 else False
 
+    # ── Extended indicator set (all additive; None when history too short) ────
+    def _opt(s: pd.Series) -> Optional[float]:
+        if len(s) == 0:
+            return None
+        v = s.iloc[-1]
+        return float(v) if not pd.isna(v) else None
+
+    bb    = bollinger(close)
+    adx_d = adx(df)
+    st    = stochastic(df)
+    obv_s = obv(close, df["Volume"])
+    stack = ema_stack(close)
+
+    adx_v = _opt(adx_d["adx"])
+    if adx_v is None:
+        trend_strength = None
+    elif adx_v >= 25:
+        trend_strength = "strong"
+    elif adx_v >= 20:
+        trend_strength = "moderate"
+    else:
+        trend_strength = "weak"
+
     return {
         "price":            px,
         "rsi":              rsi_v,
@@ -96,6 +275,25 @@ def compute_indicators(df: pd.DataFrame) -> Dict:
         "above_200":        above_200,
         "atr":              atr_v,
         "vol_contracting":  vol_contracting,
+        # ── additive keys (V3 trader upgrade) ──
+        "bb_percent_b":       _opt(bb["percent_b"]),
+        "bb_squeeze":         bollinger_squeeze(bb["bandwidth"]),
+        "adx":                adx_v,
+        "plus_di":            _opt(adx_d["plus_di"]),
+        "minus_di":           _opt(adx_d["minus_di"]),
+        "trend_strength":     trend_strength,
+        "stoch_k":            _opt(st["k"]),
+        "stoch_d":            _opt(st["d"]),
+        "obv_trend":          obv_trend(obv_s),
+        "rvol":               rvol(df["Volume"]),
+        "pct_from_52w_high":  pct_from_52w_high(close),
+        "ema20":              stack["ema20"],
+        "ema50":              stack["ema50"],
+        "ema200":             stack["ema200"],
+        "ema_stack_bull":     stack["stacked_bull"],
+        "ema_stack_bear":     stack["stacked_bear"],
+        "ema50_slope":        stack["ema50_slope"],
+        "rsi_divergence":     rsi_divergence(close, rsi_s),
     }
 
 

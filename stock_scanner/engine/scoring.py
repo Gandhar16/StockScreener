@@ -29,9 +29,10 @@ def linear_scale(val: float, min_val: float, max_val: float, higher_is_better: b
         return (max_val - val) / (max_val - min_val) * 100.0
 
 def calculate_factor_scores(
-    metrics: Dict[str, Any], 
+    metrics: Dict[str, Any],
     config: Dict[str, Any],
-    qualitative: Dict[str, Any] = None
+    qualitative: Dict[str, Any] = None,
+    peer_percentiles: Dict[str, float] = None
 ) -> Tuple[Dict[str, float], Dict[str, Dict[str, float]]]:
     """
     Calculates sub-scores from 0 to 100 for the five investment factors:
@@ -97,8 +98,22 @@ def calculate_factor_scores(
             fcf_s = 0.0
         else:
             fcf_s = fcf_net_inc * 100.0
+        # Blend in accruals when available: high (NI - OCF)/assets means paper
+        # earnings; low/negative accruals confirm cash-backed earnings.
+        accruals = metrics.get("accruals_ratio")
+        if accruals is not None and not pd.isna(accruals):
+            accruals_s = linear_scale(accruals, -0.05, 0.15, higher_is_better=False)
+            fcf_s = 0.6 * fcf_s + 0.4 * accruals_s
+            quality_scores["accruals_score"] = accruals_s
         quality_scores["earnings_quality_score"] = fcf_s
-        
+
+    # Piotroski F-score as a quality cross-check (only when enough of the 9
+    # signals were computable to be meaningful).
+    piotroski = metrics.get("piotroski_f")
+    piotroski_max = metrics.get("piotroski_max", 0)
+    if piotroski is not None and piotroski_max and piotroski_max >= 5:
+        quality_scores["piotroski_score"] = piotroski / piotroski_max * 100.0
+
     # Qualitative Moat & Management Quality (if provided)
     if qualitative:
         if "moat_score" in qualitative and qualitative["moat_score"] is not None:
@@ -171,7 +186,19 @@ def calculate_factor_scores(
         scores["valuation"] = sum(val_scores.values()) / len(val_scores)
     else:
         scores["valuation"] = 50.0
-        
+
+    # Sector-relative blend: when peer percentiles are supplied (percentile of
+    # cheapness vs same-sector peers in the scanned batch, 0-100 where 100 is
+    # cheapest), blend 50/50 with the absolute-range score. "Cheap for its
+    # sector" matters as much as "cheap in absolute terms".
+    if peer_percentiles:
+        peer_vals = [v for v in peer_percentiles.values()
+                     if v is not None and not pd.isna(v)]
+        if peer_vals:
+            peer_score = sum(peer_vals) / len(peer_vals)
+            val_scores["peer_relative_score"] = peer_score
+            scores["valuation"] = 0.5 * scores["valuation"] + 0.5 * peer_score
+
     details["valuation_details"] = val_scores
 
     # ----------------------------------------------------
@@ -228,7 +255,14 @@ def calculate_factor_scores(
     margin_exp = metrics.get("margin_expansion")
     if not pd.isna(margin_exp):
         growth_scores["margin_expansion_score"] = linear_scale(margin_exp, -0.05, 0.05, higher_is_better=True)
-        
+
+    # Growth durability: coefficient of variation of YoY revenue growth —
+    # steady compounding (CV < 0.5) beats one-year spikes (CV > 2).
+    stability = metrics.get("rev_cagr_stability")
+    if stability is not None and not pd.isna(stability):
+        growth_scores["growth_durability_score"] = linear_scale(
+            stability, 0.3, 2.0, higher_is_better=False)
+
     scores["growth"] = sum(growth_scores.values()) / len(growth_scores) if growth_scores else 50.0
     details["growth_details"] = growth_scores
 

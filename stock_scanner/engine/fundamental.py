@@ -186,8 +186,70 @@ class FundamentalEngine:
 
         combined_df = pd.concat(all_dfs, ignore_index=True)
         if not combined_df.empty:
+            combined_df = self._apply_peer_percentiles(combined_df)
             combined_df = combined_df.sort_values(by="total_score", ascending=False).reset_index(drop=True)
         return combined_df
+
+    @staticmethod
+    def compute_peer_percentiles(df: pd.DataFrame,
+                                 min_group: int = 4) -> pd.Series:
+        """
+        Percentile of cheapness vs same-sector peers in the scanned batch,
+        0-100 where 100 = cheapest. Averages the P/E and EV/EBITDA percentile
+        ranks (lower multiple = higher percentile). NaN where the sector group
+        is smaller than min_group or both multiples are missing.
+        No extra data fetches — uses columns already in the results frame.
+        """
+        out = pd.Series(float("nan"), index=df.index)
+        if "sector" not in df.columns:
+            return out
+        for _, group_idx in df.groupby("sector").groups.items():
+            group = df.loc[group_idx]
+            if len(group) < min_group:
+                continue
+            ranks = []
+            for col in ("pe_ratio", "ev_to_ebitda"):
+                if col not in group.columns:
+                    continue
+                vals = pd.to_numeric(group[col], errors="coerce")
+                vals = vals.where(vals > 0)  # negative multiples = not meaningful
+                if vals.notna().sum() < min_group:
+                    continue
+                # ascending=False percentile of expensiveness → invert so
+                # cheaper gets closer to 100
+                pct = (1.0 - vals.rank(pct=True)) * 100.0
+                ranks.append(pct)
+            if ranks:
+                combined = pd.concat(ranks, axis=1).mean(axis=1)
+                out.loc[combined.index] = combined
+        return out
+
+    def _apply_peer_percentiles(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Second pass over the combined results: blend each stock's absolute
+        valuation score 50/50 with its sector-relative cheapness percentile
+        and propagate the delta into total_score.
+        """
+        try:
+            peer_pct = self.compute_peer_percentiles(df)
+            df["peer_valuation_percentile"] = peer_pct.round(1)
+            has_peer = peer_pct.notna() & df["valuation_score"].notna()
+            if has_peer.any():
+                old_val = df.loc[has_peer, "valuation_score"].astype(float)
+                new_val = 0.5 * old_val + 0.5 * peer_pct[has_peer]
+                w_val = pd.to_numeric(
+                    df.loc[has_peer].get("_w_valuation", 0.25), errors="coerce"
+                ).fillna(0.25)
+                df.loc[has_peer, "valuation_score"] = new_val
+                df.loc[has_peer, "total_score"] = (
+                    df.loc[has_peer, "total_score"].astype(float)
+                    + w_val * (new_val - old_val)
+                )
+        except Exception as e:
+            logger.warning(f"Peer percentile pass skipped: {e}")
+        if "_w_valuation" in df.columns:
+            df = df.drop(columns=["_w_valuation"])
+        return df
 
     def _analyze_batch(self, tickers: List[str], as_of_year: Optional[int] = None) -> pd.DataFrame:
         """
@@ -395,7 +457,15 @@ class FundamentalEngine:
                     "red_flags": flags,
                     "is_disqualified": is_disq,
                     "sector": sector,
-                    "industry": industry
+                    "industry": industry,
+
+                    # V3 trader-grade additions (additive)
+                    "accruals_ratio": metrics.get("accruals_ratio"),
+                    "rev_cagr_stability": metrics.get("rev_cagr_stability"),
+                    "piotroski_f": metrics.get("piotroski_f"),
+                    "piotroski_max": metrics.get("piotroski_max"),
+                    "ev_to_ebitda": metrics.get("ev_to_ebitda"),
+                    "_w_valuation": w.get("valuation", 0.25),
                 })
             except Exception as e:
                 logger.error(f"Error analyzing fundamentals for {ticker}: {e}", exc_info=True)
@@ -678,4 +748,129 @@ class FundamentalEngine:
         else:
             metrics["margin_expansion"] = 0.0
 
+        # ── V3 trader-grade additions (all NaN-safe: sparse statements — common
+        #    for NSE tickers — yield NaN, never a fake 0) ──────────────────────
+
+        # Accruals ratio = (NI - OCF) / Total Assets. High accruals mean paper
+        # earnings not backed by cash — a classic earnings-quality red flag.
+        ni_ttm = latest(ni_series)
+        ocf_ttm = metrics.get("ocf_ttm", float("nan"))
+        assets_ttm = metrics.get("assets_ttm", float("nan"))
+        if not (math.isnan(ni_ttm) or math.isnan(ocf_ttm) or
+                math.isnan(assets_ttm)) and assets_ttm > 0:
+            metrics["accruals_ratio"] = (ni_ttm - ocf_ttm) / assets_ttm
+        else:
+            metrics["accruals_ratio"] = float("nan")
+
+        # Growth durability: coefficient of variation of YoY revenue growth
+        # over up to 5 years. Low CV = steady compounding; high CV = spiky,
+        # unreliable growth. NaN when < 3 growth observations.
+        metrics["rev_cagr_stability"] = float("nan")
+        if not rev_series.empty:
+            g = rev_series.pct_change().dropna()
+            if as_of_year is not None:
+                g = g[[i for i in g.index
+                       if str(i).split('-')[0].isdigit()
+                       and int(str(i).split('-')[0]) <= as_of_year]]
+            g = g.iloc[-5:]
+            if len(g) >= 3:
+                mean_g = float(g.mean())
+                if abs(mean_g) > 1e-9:
+                    metrics["rev_cagr_stability"] = float(g.std() / abs(mean_g))
+
+        # Piotroski-style F-score (0-9) with graceful degradation:
+        # piotroski_max counts how many of the 9 signals were computable.
+        f_score, f_max = self._piotroski(
+            ni_series=ni_series, ocf_series=ocf_series,
+            assets_series=get_metric_series(bal_df, ticker, "Total Assets"),
+            liabilities_series=get_metric_series(bal_df, ticker, "Total Liabilities"),
+            cr_series=cr_series, shares_series=shares_series,
+            gross_margin_series=gross_margin_series, rev_series=rev_series,
+            as_of_year=as_of_year,
+        )
+        metrics["piotroski_f"] = f_score
+        metrics["piotroski_max"] = f_max
+
         return metrics
+
+    @staticmethod
+    def _piotroski(ni_series, ocf_series, assets_series, liabilities_series,
+                   cr_series, shares_series, gross_margin_series, rev_series,
+                   as_of_year: Optional[int] = None):
+        """
+        Piotroski F-score adapted to available annual data. Returns
+        (score, max_computable); each of the 9 signals is only counted in
+        max_computable when the underlying data exists for both years.
+        """
+        def _tail2(series: pd.Series):
+            """Latest two values respecting as_of_year; (prev, curr) or None."""
+            if series is None or series.empty:
+                return None
+            s = series.dropna()
+            if as_of_year is not None:
+                keep = [i for i in s.index
+                        if str(i).split('-')[0].isdigit()
+                        and int(str(i).split('-')[0]) <= as_of_year]
+                s = s.loc[keep]
+            if len(s) < 2:
+                return None
+            return float(s.iloc[-2]), float(s.iloc[-1])
+
+        def _roa(ni, assets):
+            pair_ni, pair_a = _tail2(ni), _tail2(assets)
+            if pair_ni is None or pair_a is None:
+                return None
+            prev = pair_ni[0] / pair_a[0] if pair_a[0] else None
+            curr = pair_ni[1] / pair_a[1] if pair_a[1] else None
+            if prev is None or curr is None:
+                return None
+            return prev, curr
+
+        score, computable = 0, 0
+
+        # 1. Positive net income
+        ni2 = _tail2(ni_series)
+        if ni2 is not None:
+            computable += 1
+            score += ni2[1] > 0
+        # 2. Positive operating cash flow
+        ocf2 = _tail2(ocf_series)
+        if ocf2 is not None:
+            computable += 1
+            score += ocf2[1] > 0
+        # 3. ROA improving
+        roa = _roa(ni_series, assets_series)
+        if roa is not None:
+            computable += 1
+            score += roa[1] > roa[0]
+        # 4. OCF > net income (cash backs earnings)
+        if ni2 is not None and ocf2 is not None:
+            computable += 1
+            score += ocf2[1] > ni2[1]
+        # 5. Leverage decreasing (liabilities / assets)
+        lia2, ast2 = _tail2(liabilities_series), _tail2(assets_series)
+        if lia2 is not None and ast2 is not None and ast2[0] and ast2[1]:
+            computable += 1
+            score += (lia2[1] / ast2[1]) < (lia2[0] / ast2[0])
+        # 6. Current ratio improving
+        cr2 = _tail2(cr_series)
+        if cr2 is not None:
+            computable += 1
+            score += cr2[1] > cr2[0]
+        # 7. No dilution (share count flat or shrinking)
+        sh2 = _tail2(shares_series)
+        if sh2 is not None and sh2[0]:
+            computable += 1
+            score += sh2[1] <= sh2[0] * 1.005  # allow rounding noise
+        # 8. Gross margin improving
+        gm2 = _tail2(gross_margin_series)
+        if gm2 is not None:
+            computable += 1
+            score += gm2[1] > gm2[0]
+        # 9. Asset turnover improving (revenue / assets)
+        rev2 = _tail2(rev_series)
+        if rev2 is not None and ast2 is not None and ast2[0] and ast2[1]:
+            computable += 1
+            score += (rev2[1] / ast2[1]) > (rev2[0] / ast2[0])
+
+        return int(score), int(computable)

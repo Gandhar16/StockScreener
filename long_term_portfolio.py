@@ -204,6 +204,11 @@ def _build_candidates(force_refresh: bool = False) -> List[Dict]:
                 "upside":   fv_data.get("upside_pct"),
                 "pe":       yf_d.get("trailing_pe") or yf_d.get("forward_pe"),
                 "currency": yf_d.get("currency", "USD"),
+                # V3 quality cross-checks (None when data was unavailable)
+                "piotroski_f":   row.get("piotroski_f"),
+                "piotroski_max": row.get("piotroski_max"),
+                "accruals_ratio": row.get("accruals_ratio"),
+                "peer_val_pct":  row.get("peer_valuation_percentile"),
             })
     candidates.sort(key=lambda x: -x["score"])
     return candidates
@@ -235,6 +240,13 @@ def cmd_scan(args):
             status_hint = "FULL POSITION" if tranches >= MAX_TRANCHES else f"ADD T{tranches + 1}"
         else:
             status_hint = "BUY T1"
+
+        f_max = c.get("piotroski_max")
+        if c.get("piotroski_f") is not None and f_max:
+            status_hint += f"  ·  F {c['piotroski_f']}/{f_max}"
+        acc = c.get("accruals_ratio")
+        if acc is not None and not (isinstance(acc, float) and math.isnan(acc)) and acc > 0.10:
+            status_hint += "  ⚠ accruals"
 
         print(f"  {i:<5} {c['ticker']:<8} {c['score']:>6} {price_s:>10} {fv_s:>10} {up_s:>8} {pe_s:>6}  {status_hint}")
 
