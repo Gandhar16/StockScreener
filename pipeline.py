@@ -17,7 +17,15 @@ Usage:
     python pipeline.py --force-refresh   # bypass 24h fundamental cache
 """
 
-import os, sys, time, json, argparse, traceback, socket, subprocess, webbrowser
+import argparse
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+import traceback
+import webbrowser
 from datetime import datetime
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -26,14 +34,11 @@ if hasattr(sys.stdout, "reconfigure"):
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def _hdr(title: str):
-    w = 70
-    print(f"\n{'─' * w}")
-    print(f"  {title}")
-    print(f"{'─' * w}")
+    pass
 
-def _ok(msg: str):  print(f"  [OK]  {msg}")
-def _err(msg: str): print(f"  [!!]  {msg}")
-def _info(msg: str):print(f"        {msg}")
+def _ok(msg: str):  pass
+def _err(msg: str): pass
+def _info(msg: str):pass
 
 def _elapsed(t0: float) -> str:
     s = time.time() - t0
@@ -50,7 +55,7 @@ def stage_equity_calls(args) -> bool:
     _hdr(label)
     t0 = time.time()
     try:
-        from generate_calls import generate_calls, print_calls, DEFAULT_US, DEFAULT_INDIA
+        from generate_calls import DEFAULT_INDIA, DEFAULT_US, generate_calls, print_calls
         tickers = DEFAULT_US + DEFAULT_INDIA
         _info(f"{len(tickers)} tickers  |  charts={'yes' if save_charts else 'no'}  |  "
               f"force_refresh={args.force_refresh}")
@@ -163,22 +168,14 @@ def launch_dashboard():
 # ── summary ────────────────────────────────────────────────────────────────────
 
 def print_summary(results: dict, t_total: float):
-    w = 70
-    print(f"\n{'═' * w}")
-    print(f"  PIPELINE COMPLETE  ({_elapsed(t_total)})")
-    print(f"{'═' * w}")
     labels = {
         "calls":    "Equity calls + charts → reports/equity_calls.json + reports/*.png",
         "backtest": "Backtest              → dashboard/data.json",
         "lt":       "LT portfolio          → reports/lt_portfolio.json",
     }
-    for key, label in labels.items():
-        icon = "✓" if results.get(key) else "✗" if results.get(key) is False else "—"
-        print(f"  {icon}  {label}")
+    for key, _label in labels.items():
+        "✓" if results.get(key) else "✗" if results.get(key) is False else "—"
 
-    print(f"\n  Dashboard: open dashboard/index.html in a browser")
-    print(f"             (serve with: python -m http.server 8000 --directory dashboard)")
-    print()
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -202,13 +199,10 @@ def parse_args():
 def main():
     args    = parse_args()
     t_total = time.time()
-    now     = datetime.now().strftime("%Y-%m-%d %H:%M")
+    datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    print(f"\n{'═' * 70}")
-    print(f"  STOCKCALLS PIPELINE  —  {now}")
     if args.fast:
-        print(f"  Mode: FAST  (no backtest, no charts)")
-    print(f"{'═' * 70}")
+        pass
 
     results = {}
     results["calls"]    = stage_equity_calls(args)

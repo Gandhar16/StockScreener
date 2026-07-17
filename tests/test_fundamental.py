@@ -1,8 +1,11 @@
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock, patch
-from stock_scanner.engine.fundamental import FundamentalEngine
+
+import pandas as pd
+import pytest
+
 from stock_scanner.config import ScannerConfig
+from stock_scanner.engine.fundamental import FundamentalEngine
+
 
 @pytest.fixture
 def sample_config():
@@ -22,7 +25,7 @@ def sample_config():
 def mock_toolkit():
     # Helper to mock Toolkit behavior
     mock_tk = MagicMock()
-    
+
     # Mock current ratio: AAPL=1.5, MSFT=2.0, RISK=0.5
     current_ratio_df = pd.DataFrame({
         "2023": [1.5, 2.0, 0.5],
@@ -72,31 +75,31 @@ def mock_toolkit():
 
     # Mock income statement for Revenue, R&D Expenses, Net Income
     income_idx = ["Revenue", "Research and Development Expenses", "Net Income"]
-    
+
     aapl_inc = pd.DataFrame({
         "2022": [100.0, 10.0, 20.0],
         "2023": [110.0, 11.0, 22.0],
         "2024": [120.0, 12.0, 24.0]
     }, index=income_idx)
-    
+
     msft_inc = pd.DataFrame({
         "2022": [200.0, 20.0, 40.0],
         "2023": [220.0, 22.0, 44.0],
         "2024": [240.0, 24.0, 48.0]
     }, index=income_idx)
-    
+
     risk_inc = pd.DataFrame({
         "2022": [50.0, 1.0, 2.0],
         "2023": [52.0, 1.0, 2.0],
         "2024": [54.0, 1.0, 2.0]
     }, index=income_idx)
-    
+
     columns = pd.MultiIndex.from_product([["AAPL", "MSFT", "RISK"], ["2022", "2023", "2024"]])
     combined_inc = pd.DataFrame(index=income_idx, columns=columns)
     for ticker, df in [("AAPL", aapl_inc), ("MSFT", msft_inc), ("RISK", risk_inc)]:
         for year in ["2022", "2023", "2024"]:
             combined_inc[(ticker, year)] = df[year]
-            
+
     mock_tk.get_income_statement.return_value = combined_inc
 
     # Mock Cash Flow statement for FCF calculation
@@ -106,34 +109,34 @@ def mock_toolkit():
         "2023": [27.0, -5.0],
         "2024": [30.0, -6.0]
     }, index=cf_idx)
-    
+
     msft_cf = pd.DataFrame({
         "2022": [50.0, -10.0],
         "2023": [55.0, -10.0],
         "2024": [60.0, -12.0]
     }, index=cf_idx)
-    
+
     risk_cf = pd.DataFrame({
         "2022": [3.0, -2.5],
         "2023": [3.0, -2.5],
         "2024": [3.0, -2.5]
     }, index=cf_idx)
-    
+
     combined_cf = pd.DataFrame(index=cf_idx, columns=columns)
     for ticker, df in [("AAPL", aapl_cf), ("MSFT", msft_cf), ("RISK", risk_cf)]:
         for year in ["2022", "2023", "2024"]:
             combined_cf[(ticker, year)] = df[year]
-            
+
     mock_tk.get_cash_flow_statement.return_value = combined_cf
     mock_tk.get_balance_sheet_statement.return_value = pd.DataFrame()
-    
+
     return mock_tk
 
 @patch("yfinance.Ticker")
 @pytest.mark.skip(reason="Test assertion issue - RISK ticker appearing unexpectedly")
-def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit, sample_config):
-    mock_toolkit_class.return_value = mock_toolkit
-    
+def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit_class, sample_config):
+    mock_toolkit.return_value = mock_toolkit
+
     # Mock yfinance Ticker info for sectors
     mock_ticker_inst = MagicMock()
     mock_ticker_inst.info = {
@@ -143,10 +146,10 @@ def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit, sample_config)
         "pegRatio": 1.2
     }
     mock_yf_ticker.return_value = mock_ticker_inst
-    
+
     engine = FundamentalEngine(sample_config)
     results = engine.analyze_tickers(["AAPL", "MSFT", "RISK"])
-    
+
     passed_tickers = results["ticker"].tolist()
     assert "AAPL" in passed_tickers
     assert "MSFT" in passed_tickers
@@ -163,13 +166,13 @@ def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit, sample_config)
     row_msft = results[results["ticker"] == "MSFT"].iloc[0]
     row_aapl = results[results["ticker"] == "AAPL"].iloc[0]
     assert row_msft["total_score"] > row_aapl["total_score"]
-    
+
     # Check individual V1 category scores exist for backward compatibility
     assert "graham_score" in row_msft
     assert "fisher_score" in row_msft
     assert "buffett_score" in row_msft
     assert row_msft["total_score"] > 0
-    
+
     # Check V2 scores and explanations
     assert "business_quality_score" in row_msft
     assert "valuation_score" in row_msft

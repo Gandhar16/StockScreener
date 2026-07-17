@@ -20,15 +20,19 @@ Output:
     dashboard/smart_money.json   (read by dashboard)
 """
 
-import os, sys, json, argparse, logging
+import argparse
+import json
+import logging
+import os
+import sys
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import requests
 import pandas as pd
+import requests
 import yfinance as yf
 
 logging.basicConfig(level=logging.WARNING)
@@ -59,7 +63,7 @@ CONGRESS_SOURCES = [
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
-def _safe_date(val) -> Optional[datetime]:
+def _safe_date(val) -> datetime | None:
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
     try:
@@ -68,7 +72,7 @@ def _safe_date(val) -> Optional[datetime]:
         return None
 
 
-def _ticker_variants(ticker: str) -> List[str]:
+def _ticker_variants(ticker: str) -> list[str]:
     """Return possible ticker strings as they appear in congress disclosure data."""
     base = ticker.replace(".NS", "").replace(".BO", "").upper()
     return [base, f"${base}", ticker.upper()]
@@ -88,31 +92,27 @@ def _amount_sort_key(amount_str: str) -> int:
 
 # ── Congress data ──────────────────────────────────────────────────────────────
 
-def fetch_congress_data(lookback_days: int) -> Dict[str, List[Dict]]:
+def fetch_congress_data(lookback_days: int) -> dict[str, list[dict]]:
     """
     Fetch House + Senate disclosure filings and return {ticker: [trade, ...]}
     for trades within the lookback window.
     Tries multiple sources in priority order; gracefully skips if all fail.
     """
     cutoff = datetime.now() - timedelta(days=lookback_days)
-    result: Dict[str, List[Dict]] = {}
+    result: dict[str, list[dict]] = {}
     fetched_chambers: set = set()
 
     for chamber, url in CONGRESS_SOURCES:
         if chamber in fetched_chambers:
             continue
-        print(f"  Fetching {chamber} disclosure data ...", end=" ", flush=True)
         try:
             r = requests.get(url, timeout=REQUEST_TIMEOUT)
             r.raise_for_status()
             data = r.json()
             if not isinstance(data, list) or len(data) == 0:
-                print(f"EMPTY")
                 continue
-            print(f"OK ({len(data):,} records)")
             fetched_chambers.add(chamber)
-        except Exception as e:
-            print(f"FAILED")
+        except Exception:
             continue
 
         for row in data:
@@ -155,7 +155,7 @@ def fetch_congress_data(lookback_days: int) -> Dict[str, List[Dict]]:
 
 # ── Insider data ───────────────────────────────────────────────────────────────
 
-def fetch_insider_data(ticker: str, lookback_days: int) -> Dict[str, Any]:
+def fetch_insider_data(ticker: str, lookback_days: int) -> dict[str, Any]:
     """Fetch recent insider transactions from yfinance."""
     cutoff = datetime.now() - timedelta(days=lookback_days)
     try:
@@ -229,7 +229,7 @@ def fetch_insider_data(ticker: str, lookback_days: int) -> Dict[str, Any]:
 
 # ── Hedge fund data ────────────────────────────────────────────────────────────
 
-def fetch_hf_data(ticker: str) -> Dict[str, Any]:
+def fetch_hf_data(ticker: str) -> dict[str, Any]:
     """Fetch top institutional holders from yfinance (13F data)."""
     try:
         t = yf.Ticker(ticker)
@@ -276,9 +276,9 @@ def fetch_hf_data(ticker: str) -> Dict[str, Any]:
 
 # ── News summary ───────────────────────────────────────────────────────────────
 
-def load_news_from_equity_calls(tickers: List[str]) -> Dict[str, Dict]:
+def load_news_from_equity_calls(tickers: list[str]) -> dict[str, dict]:
     """Pull latest news/sentiment from existing equity_calls.json to avoid re-running FinBERT."""
-    news_map: Dict[str, Dict] = {}
+    news_map: dict[str, dict] = {}
     paths = ["dashboard/equity_calls.json", "reports/equity_calls.json"]
     for path in paths:
         if os.path.exists(path):
@@ -301,7 +301,6 @@ def load_news_from_equity_calls(tickers: List[str]) -> Dict[str, Dict]:
     # For tickers not in calls file, fetch direct from yfinance
     missing = [t for t in tickers if t not in news_map]
     if missing:
-        print(f"  Fetching news for {len(missing)} tickers without sentiment cache ...")
         for t in missing:
             try:
                 info = yf.Ticker(t)
@@ -324,25 +323,20 @@ def load_news_from_equity_calls(tickers: List[str]) -> Dict[str, Dict]:
 
 # ── main aggregator ────────────────────────────────────────────────────────────
 
-def generate_smart_money(tickers: List[str], lookback_days: int) -> Dict:
-    print(f"\nFetching smart money data for {len(tickers)} tickers (lookback={lookback_days}d)\n")
+def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
 
     # 1. Congress (one batch call for all tickers)
     congress_all = fetch_congress_data(lookback_days)
 
     # 2. News from existing calls file
-    print("  Loading news/sentiment from equity_calls.json ...")
     news_all = load_news_from_equity_calls(tickers)
 
     # 3. Per-ticker: insiders + hedge funds
-    ticker_data: Dict[str, Dict] = {}
+    ticker_data: dict[str, dict] = {}
 
     for ticker in tickers:
-        print(f"  {ticker}: insiders ...", end=" ", flush=True)
         insider = fetch_insider_data(ticker, INSIDER_LOOKBACK_DAYS)
-        print(f"({insider['signal']})  hedge funds ...", end=" ", flush=True)
         hf      = fetch_hf_data(ticker)
-        print(f"({hf['net_signal']})")
 
         # Match congressional trades for this ticker
         base_ticker = ticker.replace(".NS", "").replace(".BO", "").upper()
@@ -442,15 +436,10 @@ def main():
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
 
-    print(f"\n  Saved to {out_path}")
 
     # Print quick summary
-    print(f"\n  {'Ticker':<12} {'Overall':<10} {'Insiders':<10} {'Congress':<10} {'HedgeFunds':<12} {'News'}")
-    print("  " + "-" * 72)
-    for ticker, d in result["tickers"].items():
-        print(f"  {ticker:<12} {d['overall']:<10} {d['insiders']['signal']:<10} "
-              f"{d['congress']['signal']:<10} {d['hedge_funds']['net_signal']:<12} "
-              f"{d['news']['sentiment_label']}")
+    for _ticker, _d in result["tickers"].items():
+        pass
 
 
 if __name__ == "__main__":

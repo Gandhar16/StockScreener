@@ -1,8 +1,11 @@
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock, patch
-from stock_scanner.scanner import StockScanner
+
+import pandas as pd
+import pytest
+
 from stock_scanner.config import ScannerConfig
+from stock_scanner.scanner import StockScanner
+
 
 @pytest.fixture
 def mock_provider():
@@ -12,7 +15,7 @@ def mock_provider():
         {"ticker": "AAPL", "last_price": 150.0, "avg_volume": 1_000_000},
         {"ticker": "MSFT", "last_price": 300.0, "avg_volume": 2_000_000}
     ])
-    
+
     # Mock historical daily prices for technical analysis
     dates = pd.date_range(start="2025-01-01", periods=100, freq="D")
     mock_ohlc = pd.DataFrame({
@@ -52,15 +55,15 @@ def mock_engine():
 def test_scanner_market_scan_mode(mock_engine_cls, mock_provider_cls, mock_engine, mock_provider):
     mock_provider_cls.return_value = mock_provider
     mock_engine_cls.return_value = mock_engine
-    
+
     config = ScannerConfig(mode="market_scan", tickers=["AAPL", "MSFT"])
     scanner = StockScanner(config)
     results = scanner.run()
-    
+
     assert len(results) == 2
     assert results.iloc[0]["ticker"] == "MSFT"
     assert results.iloc[1]["ticker"] == "AAPL"
-    
+
     mock_provider.fetch_and_filter_prices.assert_called_once_with(["AAPL", "MSFT"])
     mock_engine.analyze_tickers.assert_called_once()
 
@@ -69,33 +72,34 @@ def test_scanner_market_scan_mode(mock_engine_cls, mock_provider_cls, mock_engin
 def test_scanner_single_stock_mode(mock_engine_cls, mock_provider_cls, mock_engine, mock_provider):
     mock_provider_cls.return_value = mock_provider
     mock_engine_cls.return_value = mock_engine
-    
+
     # In single stock mode, we directly analyze fundamentals and fetch market details
     config = ScannerConfig(mode="single_stock", tickers=["AAPL"])
     scanner = StockScanner(config)
     results = scanner.run()
-    
+
     assert len(results) == 2  # returns mocked engine results
     mock_provider.fetch_and_filter_prices.assert_called_once_with(["AAPL"])
     mock_engine.analyze_tickers.assert_called_once_with(["AAPL"])
 
 @pytest.mark.skip(reason="Windows temp dir permission issue")
 def test_save_buys_to_excel(tmp_path):
-    from stock_scanner.output import save_buys_to_excel
     import os
-    
+
+    from stock_scanner.output import save_buys_to_excel
+
     df = pd.DataFrame([
         {"ticker": "AAPL", "rating": "Strong Buy", "total_score": 85.0, "red_flags": []},
         {"ticker": "MSFT", "rating": "Buy", "total_score": 80.0, "red_flags": []},
         {"ticker": "GOOGL", "rating": "Hold / Neutral", "total_score": 60.0, "red_flags": []},
         {"ticker": "BAD", "rating": "Avoid", "total_score": 30.0, "red_flags": []}
     ])
-    
+
     output_file = tmp_path / "buy_recommendations.xlsx"
     save_buys_to_excel(df, str(output_file))
-    
+
     assert os.path.exists(output_file)
-    
+
     reloaded_df = pd.read_excel(output_file, engine='openpyxl')
     tickers = reloaded_df["ticker"].tolist()
     assert "AAPL" in tickers

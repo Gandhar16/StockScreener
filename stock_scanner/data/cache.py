@@ -1,12 +1,14 @@
 """Incremental caching layer with TTL support."""
 
 from __future__ import annotations
+
 import hashlib
 import pickle
 import time
-from pathlib import Path
-from typing import Any, Callable, TypeVar, ParamSpec
+from collections.abc import Callable
 from functools import wraps
+from pathlib import Path
+from typing import Any, ParamSpec, TypeVar
 
 from stock_scanner.engine.typing import Ticker
 
@@ -41,27 +43,27 @@ def _cache_path(key: str) -> Path:
 
 def get_cached(key: str, ttl: int = DEFAULT_TTL) -> Any | None:
     """Retrieve a cached value if it exists and hasn't expired.
-    
+
     Args:
         key: Cache key
         ttl: Time-to-live in seconds
-        
+
     Returns:
         Cached value or None if not found/expired
     """
     _ensure_cache_dir()
     path = _cache_path(key)
-    
+
     if not path.exists():
         return None
-    
+
     # Check TTL
     mtime = path.stat().st_mtime
     if time.time() - mtime > ttl:
         # Expired - remove and return None
         path.unlink(missing_ok=True)
         return None
-    
+
     try:
         return pickle.loads(path.read_bytes())
     except (pickle.PickleError, EOFError, OSError):
@@ -72,7 +74,7 @@ def get_cached(key: str, ttl: int = DEFAULT_TTL) -> Any | None:
 
 def set_cached(key: str, value: Any) -> None:
     """Store a value in the cache.
-    
+
     Args:
         key: Cache key
         value: Value to cache (must be picklable)
@@ -89,11 +91,11 @@ def set_cached(key: str, value: Any) -> None:
 
 def cached(ttl: int = DEFAULT_TTL, prefix: str = "") -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator to cache function results with TTL.
-    
+
     Args:
         ttl: Time-to-live in seconds
         prefix: Optional prefix for cache keys
-        
+
     Example:
         @cached(ttl=3600, prefix="fundamentals")
         def fetch_fundamentals(ticker: str, year: int) -> dict:
@@ -105,17 +107,17 @@ def cached(ttl: int = DEFAULT_TTL, prefix: str = "") -> Callable[[Callable[P, R]
             # Generate cache key
             cache_prefix = prefix or func.__module__.split(".")[-1]
             key = _cache_key(f"{cache_prefix}.{func.__name__}", *args, **kwargs)
-            
+
             # Try to get from cache
             cached = get_cached(key, ttl)
             if cached is not None:
                 return cached
-            
+
             # Call function and cache result
             result = func(*args, **kwargs)
             set_cached(key, result)
             return result
-        
+
         return wrapper
     return decorator
 
@@ -144,10 +146,10 @@ def get_sentiment_cache_key(ticker: Ticker) -> str:
 
 def clear_cache(pattern: str = "*") -> int:
     """Clear cache entries matching pattern.
-    
+
     Args:
         pattern: Glob pattern for cache files to remove
-        
+
     Returns:
         Number of files removed
     """
@@ -164,13 +166,13 @@ def clear_cache(pattern: str = "*") -> int:
 
 def get_cache_stats() -> dict:
     """Get cache statistics.
-    
+
     Returns:
         Dict with cache size, file count, oldest/newest entries
     """
     _ensure_cache_dir()
     files = list(CACHE_DIR.glob("*.pkl"))
-    
+
     if not files:
         return {
             "total_files": 0,
@@ -178,10 +180,10 @@ def get_cache_stats() -> dict:
             "oldest_entry": None,
             "newest_entry": None,
         }
-    
+
     total_size = sum(f.stat().st_size for f in files)
     mtimess = [f.stat().st_mtime for f in files]
-    
+
     return {
         "total_files": len(files),
         "total_size_bytes": total_size,
@@ -194,14 +196,14 @@ def get_cache_stats() -> dict:
 # Context manager for batch cache operations
 class CacheBatch:
     """Batch multiple cache writes for efficiency."""
-    
+
     def __init__(self):
         self._pending: dict[str, Any] = {}
-    
+
     def set(self, key: str, value: Any) -> None:
         """Add to batch."""
         self._pending[key] = value
-    
+
     def commit(self) -> int:
         """Write all pending entries."""
         count = 0
@@ -210,10 +212,10 @@ class CacheBatch:
             count += 1
         self._pending.clear()
         return count
-    
-    def __enter__(self) -> "CacheBatch":
+
+    def __enter__(self) -> CacheBatch:
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.commit()
 
@@ -274,20 +276,20 @@ def set_scan_cache(scan_name: str, data: dict, **filters) -> None:
 # Context manager for cache transactions
 class CacheTransaction:
     """Context manager for atomic cache updates."""
-    
+
     def __init__(self, prefix: str, **params):
         self.prefix = prefix
         self.params = params
         self._temp_data = None
-    
-    def __enter__(self) -> "CacheTransaction":
+
+    def __enter__(self) -> CacheTransaction:
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         if exc_type is None and self._temp_data is not None:
             set_cached(self.prefix, self._temp_data, **self.params)
         return False
-    
+
     def set(self, data):
         self._temp_data = data
 
@@ -295,25 +297,25 @@ class CacheTransaction:
 # Batch cache operations for performance
 class BatchCache:
     """Batch multiple cache operations for efficiency."""
-    
+
     def __init__(self):
         self._gets = []
         self._sets = []
-    
+
     def get(self, prefix: str, **params):
         """Queue a get operation."""
         key = _cache_key(prefix, **params)
         self._gets.append((prefix, params, key))
         return (key, None)
-    
+
     def set(self, prefix: str, value, **params):
         """Queue a set operation."""
         self._sets.append((prefix, value, params))
-    
+
     def execute(self):
         """Execute all queued operations."""
         results = {}
-        
+
         # Execute gets
         for prefix, params, key in self._gets:
             path = _cache_path(key)
@@ -324,7 +326,7 @@ class BatchCache:
                     results[key] = None
             else:
                 results[key] = None
-        
+
         # Execute sets
         for prefix, value, params in self._sets:
             key = _cache_key(prefix, **params)
@@ -332,12 +334,12 @@ class BatchCache:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL))
             results[key] = value
-        
+
         return results
-    
-    def __enter__(self) -> "BatchCache":
+
+    def __enter__(self) -> BatchCache:
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.execute()
         return False
@@ -345,7 +347,7 @@ class BatchCache:
 
 def clear_expired(ttl: int = DEFAULT_TTL) -> int:
     """Remove all expired cache entries.
-    
+
     Returns:
         Number of files removed
     """
@@ -365,7 +367,7 @@ def clear_expired(ttl: int = DEFAULT_TTL) -> int:
 
 def invalidate_prefix(prefix: str) -> int:
     """Invalidate all cache entries matching prefix.
-    
+
     Returns:
         Number of files removed
     """

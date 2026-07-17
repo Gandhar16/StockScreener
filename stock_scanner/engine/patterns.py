@@ -33,10 +33,10 @@ Candlestick patterns (last recent_candle_bars only):
   Piercing Line, Dark Cloud Cover
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
-
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -84,12 +84,12 @@ class PatternFinder:
     # ── public entry points ───────────────────────────────────────────────────
 
     def find_all(self, df: pd.DataFrame,
-                 p_highs: List[Dict], p_lows: List[Dict]) -> List[Dict[str, Any]]:
+                 p_highs: list[dict], p_lows: list[dict]) -> list[dict[str, Any]]:
         """Return recently completed + confirmed patterns."""
         n = len(df)
         cutoff = n - self.recent_chart
 
-        chart: List[Dict[str, Any]] = []
+        chart: list[dict[str, Any]] = []
         chart += self._double_top(df, p_highs, p_lows)
         chart += self._double_bottom(df, p_highs, p_lows)
         chart += self._head_and_shoulders(df, p_highs, p_lows)
@@ -117,7 +117,7 @@ class PatternFinder:
         return patterns
 
     def find_forming(self, df: pd.DataFrame,
-                     p_highs: List[Dict], p_lows: List[Dict]) -> List[Dict[str, Any]]:
+                     p_highs: list[dict], p_lows: list[dict]) -> list[dict[str, Any]]:
         """
         CMP-centric forming patterns.
         Every signal requires:
@@ -136,7 +136,7 @@ class PatternFinder:
         falling = pct < -0.005
         lookback = min(n, 80)
 
-        forming: List[Dict[str, Any]] = []
+        forming: list[dict[str, Any]] = []
         forming += self._forming_double_top(df, p_highs, p_lows, current, lookback, rising)
         forming += self._forming_double_bottom(df, p_highs, p_lows, current, lookback, falling)
         forming += self._forming_hs(df, p_highs, p_lows, current, lookback, rising)
@@ -523,7 +523,7 @@ class PatternFinder:
             {"x": [int(lx.min()), ext],
              "y": [l_slope * lx.min() + l_inter, l_slope * ext + l_inter]},
         ]
-        all_idxs = sorted(set(int(x) for x in hx.tolist() + lx.tolist()))
+        all_idxs = sorted({int(x) for x in hx.tolist() + lx.tolist()})
 
         def pat(name, short, ptype):
             lp = cur_h_val if ptype in ("bearish", "neutral") else cur_l_val

@@ -25,31 +25,30 @@ Usage:
     python run_pipeline.py
 """
 
-import os
-import sys
 import json
 import logging
-import numpy as np
+import os
+import sys
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+from datetime import datetime
+from typing import Any
+
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
-from typing import List, Dict, Any, Optional
 
 from stock_scanner.config import load_config_from_file
 from stock_scanner.engine.fundamental import FundamentalEngine
-from stock_scanner.engine.technical import MarketStructureEngine
+from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.mtf import analyze_mtf
 from stock_scanner.engine.patterns import PatternFinder
+from stock_scanner.engine.relative_strength import mansfield_rs, rs_gate
+from stock_scanner.engine.technical import MarketStructureEngine
+from stock_scanner.engine.trade_quality import choose_stop, position_size, risk_reward, setup_score
 
 # ── re-use the entry signal logic from visualize_technical ───────────────────
 from visualize_technical import compute_entry_signals
-from stock_scanner.engine.indicators import compute_indicators
-from stock_scanner.engine.mtf import analyze_mtf
-from stock_scanner.engine.relative_strength import mansfield_rs, rs_gate
-from stock_scanner.engine.trade_quality import (choose_stop, position_size,
-                                                risk_reward, setup_score)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -99,9 +98,9 @@ SIGNAL_RANK = {"BUY": 0, "BUY?": 1, "WATCH-LONG": 2}
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def download_prices(tickers: List[str], start: str, end: str) -> pd.DataFrame:
+def download_prices(tickers: list[str], start: str, end: str) -> pd.DataFrame:
     """Download adjusted close + OHLCV for all symbols in one call."""
-    symbols = list(set(tickers + ["^GSPC"]))
+    symbols = list({*tickers, "^GSPC"})
     logger.info(f"Downloading prices for {len(symbols)} symbols ({start} to {end}) ...")
     raw = yf.download(symbols, start=start, end=end,
                       auto_adjust=True, progress=False)
@@ -132,8 +131,8 @@ def ohlcv_for(price_df: pd.DataFrame, ticker: str,
 
 
 def get_technical_signal(ticker: str, df: pd.DataFrame,
-                         bench_close: Optional[pd.Series] = None
-                         ) -> Optional[Dict[str, Any]]:
+                         bench_close: pd.Series | None = None
+                         ) -> dict[str, Any] | None:
     """
     Run the full pattern + signal pipeline on a historical OHLCV slice,
     then apply the trader-grade gates:
@@ -215,7 +214,7 @@ def get_technical_signal(ticker: str, df: pd.DataFrame,
 def simulate_trade(price_df: pd.DataFrame, ticker: str,
                    entry_price: float, stop_loss: float,
                    phase_start: pd.Timestamp, phase_end: pd.Timestamp,
-                   allocation: float) -> Optional[Dict[str, Any]]:
+                   allocation: float) -> dict[str, Any] | None:
     """
     Simulate a long trade:
       - Enter on the first trading day where High >= entry_price.
@@ -276,14 +275,14 @@ def simulate_trade(price_df: pd.DataFrame, ticker: str,
     }
 
 
-def daily_portfolio_values(holdings: List[Dict], price_df: pd.DataFrame,
-                           trading_days: pd.DatetimeIndex) -> Dict[str, float]:
+def daily_portfolio_values(holdings: list[dict], price_df: pd.DataFrame,
+                           trading_days: pd.DatetimeIndex) -> dict[str, float]:
     """
     Returns {date_str: portfolio_value} for each trading day.
     Holdings may exit mid-phase (stop or time); after exit the cash sits idle.
     """
     # Build per-ticker exit info keyed by date
-    exit_map: Dict[str, Dict[str, Any]] = {}
+    exit_map: dict[str, dict[str, Any]] = {}
     for h in holdings:
         exit_map[h["ticker"]] = {
             "exit_date": pd.Timestamp(h["exit_date"][:10]),
@@ -291,8 +290,8 @@ def daily_portfolio_values(holdings: List[Dict], price_df: pd.DataFrame,
             "shares": h["shares"],
         }
 
-    day_values: Dict[str, float] = {}
-    cash_freed: Dict[str, float] = {}   # cash returned after stop / time exit
+    day_values: dict[str, float] = {}
+    cash_freed: dict[str, float] = {}   # cash returned after stop / time exit
 
     # Pre-build cash freed per exit date
     for ticker, info in exit_map.items():
@@ -341,9 +340,9 @@ def run_pipeline():
         return
 
     # 3. Phase loop
-    portfolio_history: List[Dict] = []
-    trade_logs: List[Dict] = []
-    phase_summaries: List[Dict] = []
+    portfolio_history: list[dict] = []
+    trade_logs: list[dict] = []
+    phase_summaries: list[dict] = []
 
     initial_capital = INITIAL_CAPITAL
     current_cash    = initial_capital
@@ -365,7 +364,7 @@ def run_pipeline():
             logger.warning("No fundamental scores — skipping phase.")
             continue
 
-        eligible = scored_df[scored_df.get("is_disqualified", pd.Series(False, index=scored_df.index)) == False]
+        eligible = scored_df[not scored_df.get("is_disqualified", pd.Series(False, index=scored_df.index))]
         top_candidates = eligible.head(TOP_N_FUNDAMENTAL)["ticker"].tolist()
         logger.info(f"  Fundamental top-{TOP_N_FUNDAMENTAL}: {top_candidates}")
 
@@ -375,7 +374,7 @@ def run_pipeline():
             bench_hist = price_df["Close"]["^GSPC"].loc[:p_start].dropna()
         except Exception:
             bench_hist = None
-        confirmed: List[Dict[str, Any]] = []
+        confirmed: list[dict[str, Any]] = []
         for ticker in top_candidates:
             df_hist = ohlcv_for(price_df, ticker, p_start)
             if df_hist.empty:
@@ -419,7 +418,7 @@ def run_pipeline():
         # ── Stage 3: Simulate trades ─────────────────────────────────────────
         logger.info("Stage 3: Simulating trades ...")
         equal_allocation = current_cash / len(selected)
-        phase_holdings: List[Dict] = []
+        phase_holdings: list[dict] = []
 
         trading_days = price_df["Close"].loc[p_start:p_end].dropna(how="all").index
 
@@ -556,23 +555,9 @@ def run_pipeline():
     logger.info("Saved -> reports/pipeline_summary.json")
 
     # ── Console summary ───────────────────────────────────────────────────────
-    print("\n" + "=" * 60)
-    print("  PIPELINE COMPLETE")
-    print("=" * 60)
-    print(f"  Initial capital : ${initial_capital:,.2f}")
-    print(f"  Final capital   : ${final_port:,.2f}")
-    print(f"  Total return    : {(final_port-initial_capital)/initial_capital:+.1%}")
-    bench_ret = (final_bench - initial_capital) / initial_capital
-    print(f"  S&P 500 return  : {bench_ret:+.1%}")
-    print(f"  Outperformance  : {(final_port-initial_capital)/initial_capital - bench_ret:+.1%}")
-    print(f"  Total trades    : {len(trade_logs)}")
-    wins = sum(1 for t in trade_logs if t["status"] == "WIN")
-    stops = sum(1 for t in trade_logs if t["exit_reason"] == "STOP")
-    print(f"  Win rate        : {wins}/{len(trade_logs)} ({wins/len(trade_logs):.0%})" if trade_logs else "  Win rate: N/A")
-    print(f"  Stops hit       : {stops}/{len(trade_logs)}")
-    print("=" * 60)
-    print("  Open dashboard/index.html or run: python run_dashboard.py")
-    print("=" * 60)
+    (final_bench - initial_capital) / initial_capital
+    sum(1 for t in trade_logs if t["status"] == "WIN")
+    sum(1 for t in trade_logs if t["exit_reason"] == "STOP")
 
 
 # ── Long-term backtest ────────────────────────────────────────────────────────
@@ -587,8 +572,8 @@ LT_POSITION_PCT  = 0.08   # 8% of capital per position
 LT_MAX_POSITIONS = 12
 
 
-def _lt_daily_nav(holdings: List[Dict], price_df: pd.DataFrame,
-                  trading_days: pd.DatetimeIndex) -> Dict[str, float]:
+def _lt_daily_nav(holdings: list[dict], price_df: pd.DataFrame,
+                  trading_days: pd.DatetimeIndex) -> dict[str, float]:
     """Daily NAV for long-term holdings (exits keyed by date, idle cash after)."""
     exit_map = {}
     for h in holdings:
@@ -598,13 +583,13 @@ def _lt_daily_nav(holdings: List[Dict], price_df: pd.DataFrame,
             "shares":     h["shares"],
         }
 
-    cash_freed: Dict[str, float] = {}
+    cash_freed: dict[str, float] = {}
     for info in exit_map.values():
         ed = info["exit_date"].strftime("%Y-%m-%d")
         cash_freed[ed] = cash_freed.get(ed, 0.0) + info["shares"] * info["exit_price"]
 
     total_cash = 0.0
-    day_values: Dict[str, float] = {}
+    day_values: dict[str, float] = {}
     for day in trading_days:
         ds = day.strftime("%Y-%m-%d")
         total_cash += cash_freed.get(ds, 0.0)
@@ -642,7 +627,7 @@ def run_lt_backtest():
     # Pre-load fundamental scores for all needed years so we don't re-fetch.
     needed_years = sorted({p["as_of"] for p in PHASES} | {p["as_of"] + 1 for p in PHASES})
     logger.info(f"LT backtest: pre-loading fundamental data for years {needed_years} ...")
-    scored_cache: Dict[int, pd.DataFrame] = {}
+    scored_cache: dict[int, pd.DataFrame] = {}
     for year in needed_years:
         try:
             df = fund_engine.analyze_tickers(TICKERS, as_of_year=year)
@@ -661,9 +646,9 @@ def run_lt_backtest():
         logger.error("Price download failed.")
         return
 
-    portfolio_history: List[Dict] = []
-    trade_logs:        List[Dict] = []
-    phase_summaries:   List[Dict] = []
+    portfolio_history: list[dict] = []
+    trade_logs:        list[dict] = []
+    phase_summaries:   list[dict] = []
 
     initial_capital  = INITIAL_CAPITAL
     current_capital  = initial_capital
@@ -684,7 +669,7 @@ def run_lt_backtest():
             continue
 
         is_disq = init_df.get("is_disqualified", pd.Series(False, index=init_df.index))
-        eligible = init_df[is_disq == False].copy()
+        eligible = init_df[not is_disq].copy()
         eligible["total_score"] = pd.to_numeric(eligible["total_score"], errors="coerce").fillna(0)
         qualified = eligible[eligible["total_score"] >= LT_SCORE_ENTRY].sort_values(
             "total_score", ascending=False
@@ -699,7 +684,7 @@ def run_lt_backtest():
 
         # ── Enter positions at first close after phase start ──────────────────
         alloc_per = current_capital * LT_POSITION_PCT
-        holdings: Dict[str, Dict] = {}
+        holdings: dict[str, dict] = {}
 
         for ticker in tickers_selected:
             try:
@@ -724,7 +709,7 @@ def run_lt_backtest():
             continue
 
         # ── Quarterly rescreens: 90, 180, 270 days into phase ────────────────
-        early_exits: Dict[str, tuple] = {}   # ticker → (exit_day, exit_px, reason)
+        early_exits: dict[str, tuple] = {}   # ticker → (exit_day, exit_px, reason)
 
         for q_offset in (90, 180, 270):
             q_date = p_start + pd.DateOffset(days=q_offset)
@@ -770,7 +755,7 @@ def run_lt_backtest():
                         pass
 
         # ── Build trade log for this phase ────────────────────────────────────
-        phase_trades: List[Dict] = []
+        phase_trades: list[dict] = []
 
         for ticker, h in holdings.items():
             if ticker in early_exits:
@@ -893,24 +878,8 @@ def run_lt_backtest():
 
     wins  = sum(1 for t in trade_logs if t["status"] == "WIN")
     early = sum(1 for t in trade_logs if t["exit_reason"] != "PHASE_END")
-    bench_ret = (final_bench - initial_capital) / initial_capital
+    (final_bench - initial_capital) / initial_capital
 
-    print("\n" + "=" * 60)
-    print("  LONG-TERM BACKTEST COMPLETE")
-    print("=" * 60)
-    print(f"  Strategy        : Buy fundamentals (score≥60), no stop-loss")
-    print(f"  Initial capital : ${initial_capital:,.2f}")
-    print(f"  Final capital   : ${final_port:,.2f}")
-    print(f"  Total return    : {(final_port-initial_capital)/initial_capital:+.1%}")
-    print(f"  S&P 500 return  : {bench_ret:+.1%}")
-    print(f"  Outperformance  : {(final_port-initial_capital)/initial_capital - bench_ret:+.1%}")
-    print(f"  Total trades    : {len(trade_logs)}")
-    print(f"  Win rate        : {wins}/{len(trade_logs)} ({wins/len(trade_logs):.0%})" if trade_logs else "  Win rate: N/A")
-    print(f"  Early exits     : {early}  (fundamental deterioration / D/E spike)")
-    print(f"  Phase-end exits : {len(trade_logs)-early}")
-    print("=" * 60)
-    print("  Saved → dashboard/lt_data.json")
-    print("=" * 60)
 
 
 def run() -> dict:

@@ -15,7 +15,6 @@ Trade-quality gates a professional applies before taking any setup:
   component is unavailable.
 """
 
-from typing import Dict, Optional
 
 import pandas as pd
 
@@ -30,9 +29,9 @@ DEFAULT_SETUP_WEIGHTS = {
 SETUP_GRADES = [(80, "A+"), (70, "A"), (58, "B"), (45, "C")]
 
 
-def choose_stop(entry: float, pattern_stop: Optional[float], atr: Optional[float],
+def choose_stop(entry: float, pattern_stop: float | None, atr: float | None,
                 direction: str = "bullish", atr_mult: float = 2.0,
-                min_stop_pct: float = 0.02, max_stop_pct: float = 0.10) -> Dict:
+                min_stop_pct: float = 0.02, max_stop_pct: float = 0.10) -> dict:
     """
     Pick the working stop: the tighter of the structural (pattern) stop and
     an ATR stop — but never inside min_stop_pct of entry (noise guard), and
@@ -78,8 +77,8 @@ def choose_stop(entry: float, pattern_stop: Optional[float], atr: Optional[float
             "stop_pct": round(dist_pct, 4)}
 
 
-def risk_reward(entry: float, stop: Optional[float], target: Optional[float],
-                direction: str = "bullish") -> Optional[float]:
+def risk_reward(entry: float, stop: float | None, target: float | None,
+                direction: str = "bullish") -> float | None:
     """Reward-per-unit-risk. None when inputs are missing or degenerate."""
     if not entry or stop is None or target is None:
         return None
@@ -92,7 +91,7 @@ def risk_reward(entry: float, stop: Optional[float], target: Optional[float],
     return round(reward / risk, 2)
 
 
-def passes_rr_gate(rr: Optional[float], min_rr: float = 2.0) -> Optional[bool]:
+def passes_rr_gate(rr: float | None, min_rr: float = 2.0) -> bool | None:
     """None (pass-through) when R:R could not be computed."""
     if rr is None:
         return None
@@ -100,8 +99,8 @@ def passes_rr_gate(rr: Optional[float], min_rr: float = 2.0) -> Optional[bool]:
 
 
 def position_size(capital: float, risk_pct: float, entry: float,
-                  stop: Optional[float],
-                  max_position_pct: float = 0.15) -> Dict:
+                  stop: float | None,
+                  max_position_pct: float = 0.15) -> dict:
     """
     Fixed-fractional sizing: shares = (capital * risk_pct) / per-share risk,
     capped so the position notional never exceeds max_position_pct of capital.
@@ -133,7 +132,7 @@ def position_size(capital: float, risk_pct: float, entry: float,
     }
 
 
-def _volume_component(indicators: Dict, pattern: Optional[Dict] = None) -> Optional[float]:
+def _volume_component(indicators: dict, pattern: dict | None = None) -> float | None:
     """0-100 volume-confirmation score from rvol, OBV trend and the pattern's
     own volume confirmation. None when nothing is measurable."""
     parts = []
@@ -162,7 +161,7 @@ def _volume_component(indicators: Dict, pattern: Optional[Dict] = None) -> Optio
     return sum(parts) / len(parts)
 
 
-def _rr_component(rr: Optional[float]) -> Optional[float]:
+def _rr_component(rr: float | None) -> float | None:
     if rr is None:
         return None
     if rr >= 3.0:
@@ -172,13 +171,13 @@ def _rr_component(rr: Optional[float]) -> Optional[float]:
     return (rr - 1.0) / 2.0 * 100.0  # linear 1:1→0, 3:1→100
 
 
-def setup_score(pattern_score: Optional[float],
-                mtf: Optional[Dict] = None,
-                rs: Optional[Dict] = None,
-                indicators: Optional[Dict] = None,
-                rr: Optional[float] = None,
-                pattern: Optional[Dict] = None,
-                config: Optional[Dict] = None) -> Dict:
+def setup_score(pattern_score: float | None,
+                mtf: dict | None = None,
+                rs: dict | None = None,
+                indicators: dict | None = None,
+                rr: float | None = None,
+                pattern: dict | None = None,
+                config: dict | None = None) -> dict:
     """
     Composite 0-100 trade setup score.
 
@@ -232,11 +231,11 @@ def setup_score(pattern_score: Optional[float],
             "components": components, "missing": missing}
 
 
-def enrich_trade_signal(sig: Dict, df: pd.DataFrame, ticker: str,
-                        indicators: Dict,
-                        bench_close: Optional[pd.Series] = None,
+def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
+                        indicators: dict,
+                        bench_close: pd.Series | None = None,
                         fetch_benchmark: bool = True,
-                        config: Optional[Dict] = None) -> Dict:
+                        config: dict | None = None) -> dict:
     """
     Enrich a best-signal dict (in place) with the full trader-grade context:
 
@@ -252,8 +251,7 @@ def enrich_trade_signal(sig: Dict, df: pd.DataFrame, ticker: str,
     Returns the same dict for convenience.
     """
     from .mtf import analyze_mtf
-    from .relative_strength import (benchmark_for, fetch_benchmark_history,
-                                    mansfield_rs, rs_gate)
+    from .relative_strength import benchmark_for, fetch_benchmark_history, mansfield_rs, rs_gate
 
     cfg = config or {}
     direction = "bullish" if sig.get("type") == "bullish" or \

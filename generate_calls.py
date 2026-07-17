@@ -21,30 +21,41 @@ Output:
     reports/equity_calls.json  (read by the dashboard)
 """
 
-import os, sys, json, math, pickle, argparse, logging
+import argparse
+import json
+import logging
+import math
+import os
+import pickle
+import sys
 
 # Force UTF-8 output on Windows so currency symbols don't crash
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 from stock_scanner.config import load_config_from_file
+from stock_scanner.engine.calls_db import export_portfolio_json, upsert_call
 from stock_scanner.engine.fundamental import FundamentalEngine
-from stock_scanner.engine.technical import MarketStructureEngine
+from stock_scanner.engine.indicators import compute_indicators
 from stock_scanner.engine.patterns import PatternFinder
 from stock_scanner.engine.sentiment import SentimentEngine
-from stock_scanner.engine.calls_db import upsert_call, export_portfolio_json
-from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.technical import MarketStructureEngine
 from stock_scanner.engine.trade_quality import enrich_trade_signal
-from visualize_technical import (compute_entry_signals, annotate_at_levels,
-                                  select_zones, select_trendlines,
-                                  find_fib_pivots, find_fib_pivots_bearish,
-                                  save_chart)
+from visualize_technical import (
+    annotate_at_levels,
+    compute_entry_signals,
+    find_fib_pivots,
+    find_fib_pivots_bearish,
+    save_chart,
+    select_trendlines,
+    select_zones,
+)
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("calls")
@@ -95,14 +106,14 @@ WEAK_PATTERNS = {
 
 # ── fair value helpers ────────────────────────────────────────────────────────
 
-def graham_number(eps: float, bvps: float) -> Optional[float]:
+def graham_number(eps: float, bvps: float) -> float | None:
     """Graham Number = sqrt(22.5 × EPS × BVPS).  Conservative intrinsic value."""
     if eps and bvps and eps > 0 and bvps > 0:
         return math.sqrt(22.5 * eps * bvps)
     return None
 
 
-def get_yf_fundamentals(ticker: str) -> Dict[str, Any]:
+def get_yf_fundamentals(ticker: str) -> dict[str, Any]:
     """Fetch key live metrics from yfinance .info dict."""
     try:
         info = yf.Ticker(ticker).info or {}
@@ -131,7 +142,7 @@ def get_yf_fundamentals(ticker: str) -> Dict[str, Any]:
     }
 
 
-def fair_value_estimate(yf_data: Dict, fund_row: Optional[Dict] = None) -> Dict[str, Any]:
+def fair_value_estimate(yf_data: dict, fund_row: dict | None = None) -> dict[str, Any]:
     """
     Returns a dict with fair_value, method, and upside_pct.
     Priority: analyst_target → Graham number → forward P/E based.
@@ -168,7 +179,7 @@ def fair_value_estimate(yf_data: Dict, fund_row: Optional[Dict] = None) -> Dict[
 # ── fibonacci targets ─────────────────────────────────────────────────────────
 
 def compute_fib_targets(df: pd.DataFrame, p_highs: list, p_lows: list,
-                         entry: float, stop: float) -> Dict[str, Any]:
+                         entry: float, stop: float) -> dict[str, Any]:
     """
     Find the recent swing_low / swing_high from pivot data and compute:
       T1 = 100% measured move (return to swing_high / prior high)
@@ -213,7 +224,7 @@ def compute_fib_targets(df: pd.DataFrame, p_highs: list, p_lows: list,
 
 
 def compute_fib_targets_bearish(df: pd.DataFrame, p_highs: list, p_lows: list,
-                                 entry: float, stop: float) -> Dict[str, Any]:
+                                 entry: float, stop: float) -> dict[str, Any]:
     """
     Bearish Fibonacci targets for SELL calls.
       swing_high came FIRST (peak), swing_low came SECOND (trough).
@@ -261,7 +272,7 @@ def compute_fib_targets_bearish(df: pd.DataFrame, p_highs: list, p_lows: list,
 # ── technical helpers ─────────────────────────────────────────────────────────
 
 def run_technicals(ticker: str, period: str = "2y",
-                   make_chart: bool = False) -> Tuple[Optional[Dict], Optional[Dict], List[Dict], Dict]:
+                   make_chart: bool = False) -> tuple[dict | None, dict | None, list[dict], dict]:
     """
     Download OHLCV, run pattern detection, and return:
       (best_bullish_signal, best_bearish_signal, all_patterns, structure_result)
@@ -402,7 +413,7 @@ _SW_DOWNGRADE = {
     "SETUP":           "SETUP",
 }
 
-def sentiment_adjust(conviction: str, sentiment_label: str, call_type: str) -> Tuple[str, bool]:
+def sentiment_adjust(conviction: str, sentiment_label: str, call_type: str) -> tuple[str, bool]:
     """Downgrade conviction one tier when news is bearish. Returns (new_conv, was_flagged)."""
     if sentiment_label != "BEARISH":
         return conviction, False
@@ -422,13 +433,13 @@ _TRADER_FIELD_KEYS = (
     "position_shares", "position_value", "capital_at_risk",
 )
 
-def _trader_fields(sig: Dict) -> Dict:
+def _trader_fields(sig: dict) -> dict:
     return {k: sig.get(k) for k in _TRADER_FIELD_KEYS if k in sig}
 
 
 # ── conviction label ──────────────────────────────────────────────────────────
 
-def swing_conviction(sig: Dict) -> str:
+def swing_conviction(sig: dict) -> str:
     """
     Conviction tier — three-level fallback chain:
 
@@ -470,7 +481,7 @@ def swing_conviction(sig: Dict) -> str:
     return "SETUP"
 
 
-def lt_conviction(score: float, upside: Optional[float], rating: str) -> str:
+def lt_conviction(score: float, upside: float | None, rating: str) -> str:
     if upside is None:
         upside = 0
     if score >= 78 and upside >= 0.20:
@@ -490,7 +501,7 @@ def currency_sym(cur: str) -> str:
     return {"INR": "₹", "USD": "$", "GBP": "£", "EUR": "€"}.get(cur, cur + " ")
 
 
-def fmt(val: Optional[float], sym: str = "$", pct: bool = False) -> str:
+def fmt(val: float | None, sym: str = "$", pct: bool = False) -> str:
     if val is None or (isinstance(val, float) and math.isnan(val)):
         return "—"
     if pct:
@@ -523,7 +534,7 @@ def parse_args():
     return p.parse_args()
 
 
-def load_or_refresh_fundamentals(tickers: List[str], force: bool = False) -> Dict[str, Dict]:
+def load_or_refresh_fundamentals(tickers: list[str], force: bool = False) -> dict[str, dict]:
     """Return {ticker: fund_row_dict} from cache if fresh, else re-run screen."""
     if not force and os.path.exists(LIVE_FUND_CACHE):
         age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(LIVE_FUND_CACHE))
@@ -532,10 +543,8 @@ def load_or_refresh_fundamentals(tickers: List[str], force: bool = False) -> Dic
                 cached = pickle.load(f)
             # check if all requested tickers are in cache
             if all(t in cached for t in tickers):
-                print(f"  Using cached fundamentals (age: {int(age.total_seconds()/3600)}h)")
                 return cached
 
-    print("  Running live fundamental screen (cached for 24h after) ...")
     config_path = "config/scanner_config.yaml"
     config = load_config_from_file(config_path)
     engine = FundamentalEngine(config)
@@ -552,49 +561,46 @@ def load_or_refresh_fundamentals(tickers: List[str], force: bool = False) -> Dic
     return result
 
 
-def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
+def generate_calls(tickers: list[str], period: str, run_fundamentals: bool,
                    save_charts: bool = False,
                    force_refresh: bool = False,
-                   run_sentiment: bool = True) -> Dict:  # noqa: C901
+                   run_sentiment: bool = True) -> dict:
     """
     Main call generation. Returns a dict with long_term_calls and swing_calls.
     """
     # Split US vs India (FinanceToolkit works better with US tickers)
     us_tickers  = [t for t in tickers if not t.endswith(".NS") and not t.endswith(".BO")]
-    ind_tickers = [t for t in tickers if t.endswith(".NS") or t.endswith(".BO")]
+    [t for t in tickers if t.endswith((".NS", ".BO"))]
 
     # ── Fundamentals ──────────────────────────────────────────────────────────
-    fund_data: Dict[str, Dict] = {}
+    fund_data: dict[str, dict] = {}
     if run_fundamentals and us_tickers:
         fund_data = load_or_refresh_fundamentals(us_tickers, force=force_refresh)
 
     # ── Sentiment ─────────────────────────────────────────────────────────────
-    sentiment_data: Dict[str, Dict] = {}
+    sentiment_data: dict[str, dict] = {}
     if run_sentiment:
-        print("\n  Running news sentiment analysis (FinBERT) ...")
         try:
             sent_engine  = SentimentEngine()
             sentiment_data = sent_engine.analyze_batch(tickers)
-        except ImportError as e:
-            print(f"  [WARN] Sentiment skipped: {e}")
-        except Exception as e:
-            print(f"  [WARN] Sentiment error: {e}")
+        except ImportError:
+            pass
+        except Exception:
+            pass
 
     # ── Generate calls ────────────────────────────────────────────────────────
-    long_term_calls: List[Dict] = []
-    swing_calls:     List[Dict] = []
-    sell_calls:      List[Dict] = []
+    long_term_calls: list[dict] = []
+    swing_calls:     list[dict] = []
+    sell_calls:      list[dict] = []
     date_str = datetime.now().strftime("%Y-%m-%d")
 
     for ticker in tickers:
-        print(f"  Analyzing {ticker} ...", end=" ", flush=True)
 
         # yfinance live data
         yf_d = get_yf_fundamentals(ticker)
         price = yf_d.get("current_price") or 0
-        sym   = currency_sym(yf_d.get("currency", "USD"))
+        currency_sym(yf_d.get("currency", "USD"))
         if price <= 0:
-            print("no price")
             continue
 
         # Sentiment (pre-computed in batch above)
@@ -607,9 +613,8 @@ def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
         # Technical
         best_sig, best_sell, all_patterns, struct = run_technicals(
             ticker, period, make_chart=save_charts)
-        bull_label = f"BUY={best_sig['signal']}" if best_sig else "no buy"
-        bear_label = f"SELL={best_sell['signal']}" if best_sell else "no sell"
-        print(f"patterns={len(all_patterns)}  {bull_label}  {bear_label}")
+        f"BUY={best_sig['signal']}" if best_sig else "no buy"
+        f"SELL={best_sell['signal']}" if best_sell else "no sell"
 
         # ── Long-term call ────────────────────────────────────────────────────
         fund_row = fund_data.get(ticker)
@@ -821,9 +826,8 @@ def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
         for c in swing_calls:
             upsert_call(c, "SWING")
         export_portfolio_json()
-        print(f"  {len(long_term_calls)} long-term + {len(swing_calls)} swing BUY positions saved to DB.")
-    except Exception as e:
-        print(f"  [WARN] DB save failed: {e}")
+    except Exception:
+        pass
 
     return {"long_term_calls": long_term_calls, "swing_calls": swing_calls,
             "sell_calls": sell_calls,
@@ -832,135 +836,115 @@ def generate_calls(tickers: List[str], period: str, run_fundamentals: bool,
 
 # ── print formatted call sheet ────────────────────────────────────────────────
 
-def print_calls(calls: Dict):
+def print_calls(calls: dict):
     lt   = calls["long_term_calls"]
     sw   = calls["swing_calls"]
     sl   = calls.get("sell_calls", [])
     now  = calls["generated_at"]
-    W    = 78
 
-    def line(ch="-"): print("  " + ch * W)
-    def header(text): print(f"\n  {'='*W}\n  {text.center(W)}\n  {'='*W}")
+    def line(ch="-"): pass
+    def header(text): pass
 
     header(f"EQUITY CALLS  —  {now}")
 
     # ── Long-term calls ───────────────────────────────────────────────────────
-    print(f"\n  {'LONG-TERM CALLS':{'-'}^{W+2}}")
-    print(f"  {'Ticker':<8} {'Company':<26} {'Conv':<14} {'Price':>8}  {'FairVal':>8}  {'Upside':>7}  {'Score':>5}  {'PE':>5}")
     line()
 
     if not lt:
-        print("  No long-term calls generated.")
+        pass
     for c in lt:
         sym  = currency_sym(c.get("currency", "USD"))
-        prc  = f"{sym}{c['current_price']:,.2f}"
-        fv   = f"{sym}{c['fair_value']:,.2f}" if c.get("fair_value") else "   —"
-        up   = f"{c['upside_pct']*100:+.1f}%" if c.get("upside_pct") is not None else "   —"
-        pe   = f"{c['pe']:.1f}x" if c.get("pe") else "   —"
-        sc   = f"{c['fund_score']}"
+        f"{sym}{c['current_price']:,.2f}"
+        f"{sym}{c['fair_value']:,.2f}" if c.get("fair_value") else "   —"
+        f"{c['upside_pct']*100:+.1f}%" if c.get("upside_pct") is not None else "   —"
+        f"{c['pe']:.1f}x" if c.get("pe") else "   —"
+        f"{c['fund_score']}"
 
-        print(f"  {c['ticker']:<8} {c['name'][:25]:<26} {c['conviction']:<14} {prc:>8}  {fv:>8}  {up:>7}  {sc:>5}  {pe:>5}")
 
         if c.get("tech_context"):
-            print(f"  {'':8} Tech: {c['tech_context']}  |  {c.get('entry_note','')}")
+            pass
 
-        for t in c.get("thesis", [])[:3]:
-            print(f"  {'':8} {t[:72]}")
+        for _t in c.get("thesis", [])[:3]:
+            pass
 
         if c.get("analyst_target"):
-            at = c["analyst_target"]
-            sym2 = currency_sym(c.get("currency","USD"))
-            print(f"  {'':8} Analyst target: {sym2}{at:,.2f}")
-        print()
+            c["analyst_target"]
+            currency_sym(c.get("currency","USD"))
 
     # ── Swing calls ───────────────────────────────────────────────────────────
-    print(f"\n  {'SWING CALLS':{'-'}^{W+2}}")
-    print(f"  {'Ticker':<8} {'Conv':<16} {'Pattern':<22} {'Entry':>8}  {'Stop':>8}  {'T1':>8}  {'T2':>8}  {'T3':>8}  {'R:R(T1)':>7}")
     line()
 
     if not sw:
-        print("  No swing calls generated.")
+        pass
     for c in sw:
         sym   = currency_sym(c.get("currency", "USD"))
-        entry = f"{sym}{c['entry_price']:,.2f}"
-        stop  = f"{sym}{c['stop_loss']:,.2f}"
-        t1    = f"{sym}{c['t1']:,.2f}"   if c.get("t1") else "—"
-        t2    = f"{sym}{c['t2']:,.2f}"   if c.get("t2") else "—"
-        t3    = f"{sym}{c['t3']:,.2f}"   if c.get("t3") else "—"
-        rr    = f"{c['risk_reward']:.1f}:1"
-        pat   = c["pattern"][:21]
-        form  = " [F]" if c.get("forming") else ""
+        f"{sym}{c['entry_price']:,.2f}"
+        f"{sym}{c['stop_loss']:,.2f}"
+        f"{sym}{c['t1']:,.2f}"   if c.get("t1") else "—"
+        f"{sym}{c['t2']:,.2f}"   if c.get("t2") else "—"
+        f"{sym}{c['t3']:,.2f}"   if c.get("t3") else "—"
+        f"{c['risk_reward']:.1f}:1"
+        c["pattern"][:21]
+        " [F]" if c.get("forming") else ""
         vol   = " [V]" if c.get("vol_confirmed") else ""
 
-        print(f"  {c['ticker']:<8} {c['conviction']:<16} {pat+form:<22} {entry:>8}  {stop:>8}  {t1:>8}  {t2:>8}  {t3:>8}  {rr:>7}")
 
         swing_lo = c.get("swing_low");  swing_hi = c.get("swing_high")
         if swing_lo and swing_hi:
-            print(f"  {'':8} Swing: {sym}{swing_lo:,.2f} → {sym}{swing_hi:,.2f}  "
-                  f"|  R:R  T2={c.get('rr_t2',0):.1f}:1  T3={c.get('rr_t3',0):.1f}:1")
+            pass
 
         lvl = c.get("at_level", "")
         notes = []
         if lvl:    notes.append(str(lvl))
         if vol:    notes.append("Vol confirmed")
         if c.get("signal") == "WATCH-LONG": notes.append("Wait for entry trigger")
-        if notes:  print(f"  {'':8} {c['signal']}  |  {' · '.join(notes)}")
+        if notes:  pass
 
         if c.get("fund_score"):
-            print(f"  {'':8} Fund score: {c['fund_score']}/100  |  Horizon: {c.get('time_horizon','')}")
-        print()
+            pass
 
     # ── Sell calls ────────────────────────────────────────────────────────────
-    print(f"\n  {'SELL CALLS (SHORT / BEARISH)':{'-'}^{W+2}}")
-    print(f"  {'Ticker':<8} {'Conv':<16} {'Pattern':<22} {'Entry':>8}  {'Stop':>8}  {'T1':>8}  {'T2':>8}  {'T3':>8}  {'R:R(T1)':>7}")
     line()
 
     if not sl:
-        print("  No sell calls generated.")
+        pass
     for c in sl:
         sym   = currency_sym(c.get("currency", "USD"))
-        entry = f"{sym}{c['entry_price']:,.2f}"
-        stop  = f"{sym}{c['stop_loss']:,.2f}"
-        t1    = f"{sym}{c['t1']:,.2f}"   if c.get("t1") else "—"
-        t2    = f"{sym}{c['t2']:,.2f}"   if c.get("t2") else "—"
-        t3    = f"{sym}{c['t3']:,.2f}"   if c.get("t3") else "—"
-        rr    = f"{c['risk_reward']:.1f}:1"
-        pat   = c["pattern"][:21]
-        form  = " [F]" if c.get("forming") else ""
+        f"{sym}{c['entry_price']:,.2f}"
+        f"{sym}{c['stop_loss']:,.2f}"
+        f"{sym}{c['t1']:,.2f}"   if c.get("t1") else "—"
+        f"{sym}{c['t2']:,.2f}"   if c.get("t2") else "—"
+        f"{sym}{c['t3']:,.2f}"   if c.get("t3") else "—"
+        f"{c['risk_reward']:.1f}:1"
+        c["pattern"][:21]
+        " [F]" if c.get("forming") else ""
         vol   = " [V]" if c.get("vol_confirmed") else ""
 
-        print(f"  {c['ticker']:<8} {c['conviction']:<16} {pat+form:<22} {entry:>8}  {stop:>8}  {t1:>8}  {t2:>8}  {t3:>8}  {rr:>7}")
 
         swing_lo = c.get("swing_low");  swing_hi = c.get("swing_high")
         if swing_lo and swing_hi:
-            print(f"  {'':8} Swing peak→trough: {sym}{swing_hi:,.2f} → {sym}{swing_lo:,.2f}  "
-                  f"|  R:R  T2={c.get('rr_t2',0):.1f}:1  T3={c.get('rr_t3',0):.1f}:1")
+            pass
 
         lvl = c.get("at_level", "")
         notes = []
         if lvl:    notes.append(str(lvl))
         if vol:    notes.append("Vol confirmed")
         if c.get("signal") == "WATCH-SHORT": notes.append("Wait for breakdown trigger")
-        if notes:  print(f"  {'':8} {c['signal']}  |  {' · '.join(notes)}")
+        if notes:  pass
 
         if c.get("fund_score"):
-            print(f"  {'':8} Fund score: {c['fund_score']}/100  |  Horizon: {c.get('time_horizon','')}")
-        print()
+            pass
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    strong_buy = sum(1 for c in lt if c["conviction"] == "STRONG BUY")
-    buy        = sum(1 for c in lt if c["conviction"] == "BUY")
-    accum      = sum(1 for c in lt if c["conviction"] == "ACCUMULATE")
-    hc_swing   = sum(1 for c in sw if c["conviction"] == "HIGH CONVICTION")
-    conf_swing = sum(1 for c in sw if c["conviction"] == "CONFIRMED")
-    hc_sell    = sum(1 for c in sl if c["conviction"] == "HIGH CONVICTION")
-    conf_sell  = sum(1 for c in sl if c["conviction"] == "CONFIRMED")
+    sum(1 for c in lt if c["conviction"] == "STRONG BUY")
+    sum(1 for c in lt if c["conviction"] == "BUY")
+    sum(1 for c in lt if c["conviction"] == "ACCUMULATE")
+    sum(1 for c in sw if c["conviction"] == "HIGH CONVICTION")
+    sum(1 for c in sw if c["conviction"] == "CONFIRMED")
+    sum(1 for c in sl if c["conviction"] == "HIGH CONVICTION")
+    sum(1 for c in sl if c["conviction"] == "CONFIRMED")
 
     line("=")
-    print(f"  Long-term : {strong_buy} STRONG BUY  |  {buy} BUY  |  {accum} ACCUMULATE")
-    print(f"  Swing     : {hc_swing} HIGH CONVICTION  |  {conf_swing} CONFIRMED  |  {len(sw)-hc_swing-conf_swing} SETUP")
-    print(f"  Sell      : {hc_sell} HIGH CONVICTION  |  {conf_sell} CONFIRMED  |  {len(sl)-hc_sell-conf_sell} SETUP")
-    print(f"  Generated : {now}")
     line("=")
 
 
@@ -976,10 +960,6 @@ def main():
 
     run_fund      = not args.no_fundamentals
     run_sentiment = not args.no_sentiment
-    print(f"\nGenerating equity calls for {len(tickers)} tickers  (period={args.period})")
-    print(f"  Fundamentals: {'yes' if run_fund else 'no'}  |  "
-          f"Sentiment: {'yes (FinBERT)' if run_sentiment else 'no'}  |  "
-          f"Min R:R: {MIN_RR}  |  Charts: {'yes' if args.save_charts else 'no'}\n")
 
     calls = generate_calls(tickers, args.period, run_fund,
                            save_charts=args.save_charts,
@@ -996,16 +976,13 @@ def main():
         f.write(payload)
     with open(dash_path, "w") as f:
         f.write(payload)
-    print(f"\n  Saved to {out_path} and {dash_path}")
-    print(f"  Open dashboard or view reports/equity_calls.json for full data.")
 
     if args.telegram:
-        print("\n  Sending to Telegram ...")
         try:
             from telegram_notifier import send_calls
             send_calls(include_smart_money=args.telegram_smart_money)
-        except Exception as e:
-            print(f"  [WARN] Telegram send failed: {e}")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

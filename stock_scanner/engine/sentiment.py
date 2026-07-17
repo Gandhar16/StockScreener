@@ -11,9 +11,10 @@ Install deps once:
     pip install transformers torch
 """
 
-import os, pickle, logging
+import logging
+import os
+import pickle
 from datetime import datetime, timedelta
-from typing import Dict, List
 
 import yfinance as yf
 
@@ -36,14 +37,12 @@ class SentimentEngine:
             return self._pipe
         try:
             from transformers import pipeline as hf_pipeline
-            print("  Loading FinBERT (first run downloads ~400 MB) ...", end=" ", flush=True)
             self._pipe = hf_pipeline(
                 "text-classification",
                 model="ProsusAI/finbert",
                 top_k=None,
                 device=-1,   # force CPU; set to 0 for GPU
             )
-            print("ready.")
         except ImportError:
             raise ImportError(
                 "transformers not installed. Run:\n"
@@ -53,7 +52,7 @@ class SentimentEngine:
 
     # ── news fetch ────────────────────────────────────────────────────────────
 
-    def _fetch_news(self, ticker: str) -> List[Dict]:
+    def _fetch_news(self, ticker: str) -> list[dict]:
         try:
             return yf.Ticker(ticker).news or []
         except Exception as e:
@@ -62,7 +61,7 @@ class SentimentEngine:
 
     # ── scoring ───────────────────────────────────────────────────────────────
 
-    def _score(self, text: str) -> Dict:
+    def _score(self, text: str) -> dict:
         pipe = self._load_model()
         try:
             raw = pipe(text[:512], truncation=True)
@@ -83,7 +82,7 @@ class SentimentEngine:
 
     # ── per-ticker analysis ───────────────────────────────────────────────────
 
-    def _parse_article(self, art: Dict) -> Dict:
+    def _parse_article(self, art: dict) -> dict:
         """Normalise article dict across old and new yfinance news structures."""
         # New structure (yfinance ≥ 0.2.52): {"id": ..., "content": {...}}
         if "content" in art and isinstance(art["content"], dict):
@@ -104,7 +103,7 @@ class SentimentEngine:
             pub     = datetime.fromtimestamp(pub_ts).strftime("%Y-%m-%d") if pub_ts else ""
         return {"title": title.strip(), "summary": summary.strip(), "published": pub}
 
-    def analyze(self, ticker: str) -> Dict:
+    def analyze(self, ticker: str) -> dict:
         articles = self._fetch_news(ticker)[:10]
         if not articles:
             return _empty()
@@ -152,7 +151,7 @@ class SentimentEngine:
 
     # ── batch with disk cache ─────────────────────────────────────────────────
 
-    def analyze_batch(self, tickers: List[str]) -> Dict[str, Dict]:
+    def analyze_batch(self, tickers: list[str]) -> dict[str, dict]:
         cache  = _load_cache()
         result = {}
         now    = datetime.now()
@@ -163,12 +162,10 @@ class SentimentEngine:
                 result[ticker] = entry["data"]
                 continue
 
-            print(f"  Sentiment {ticker:<12}", end=" ", flush=True)
             data = self.analyze(ticker)
-            lbl  = data["sentiment_label"]
-            sc   = data["sentiment_score"]
-            cnt  = data["news_count"]
-            print(f"→ {lbl:<8} ({sc:+.2f}, {cnt} articles)")
+            data["sentiment_label"]
+            data["sentiment_score"]
+            data["news_count"]
 
             result[ticker]  = data
             cache[ticker]   = {"timestamp": now, "data": data}
@@ -179,12 +176,12 @@ class SentimentEngine:
 
 # ── cache helpers ─────────────────────────────────────────────────────────────
 
-def _empty() -> Dict:
+def _empty() -> dict:
     return {"sentiment_score": 0, "sentiment_label": "NEUTRAL",
             "news_count": 0, "top_headlines": []}
 
 
-def _load_cache() -> Dict:
+def _load_cache() -> dict:
     if os.path.exists(SENTIMENT_CACHE):
         try:
             with open(SENTIMENT_CACHE, "rb") as f:
@@ -194,7 +191,7 @@ def _load_cache() -> Dict:
     return {}
 
 
-def _save_cache(cache: Dict):
+def _save_cache(cache: dict):
     os.makedirs("reports", exist_ok=True)
     with open(SENTIMENT_CACHE, "wb") as f:
         pickle.dump(cache, f)

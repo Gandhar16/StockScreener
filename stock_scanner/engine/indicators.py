@@ -5,9 +5,9 @@ Fast numpy/pandas technical indicators — no TA-Lib dependency.
 All functions return scalar snapshots at the latest bar unless noted.
 """
 
+
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional
 
 
 def rsi(close: pd.Series, period: int = 14) -> pd.Series:
@@ -21,7 +21,7 @@ def rsi(close: pd.Series, period: int = 14) -> pd.Series:
 
 
 def macd(close: pd.Series, fast: int = 12, slow: int = 26,
-         signal: int = 9) -> Dict[str, pd.Series]:
+         signal: int = 9) -> dict[str, pd.Series]:
     ema_f   = close.ewm(span=fast,   min_periods=fast).mean()
     ema_s   = close.ewm(span=slow,   min_periods=slow).mean()
     line    = ema_f - ema_s
@@ -47,7 +47,7 @@ def ema(close: pd.Series, period: int) -> pd.Series:
 
 
 def bollinger(close: pd.Series, period: int = 20,
-              num_std: float = 2.0) -> Dict[str, pd.Series]:
+              num_std: float = 2.0) -> dict[str, pd.Series]:
     mid   = close.rolling(period, min_periods=period).mean()
     std   = close.rolling(period, min_periods=period).std()
     upper = mid + num_std * std
@@ -58,7 +58,7 @@ def bollinger(close: pd.Series, period: int = 20,
             "bandwidth": bandwidth, "percent_b": percent_b}
 
 
-def bollinger_squeeze(bandwidth: pd.Series, lookback: int = 120) -> Optional[bool]:
+def bollinger_squeeze(bandwidth: pd.Series, lookback: int = 120) -> bool | None:
     """True when current bandwidth sits in the lowest decile of the lookback
     window — volatility compression that often precedes an expansion move."""
     bw = bandwidth.dropna()
@@ -68,7 +68,7 @@ def bollinger_squeeze(bandwidth: pd.Series, lookback: int = 120) -> Optional[boo
     return bool(bw.iloc[-1] <= window.quantile(0.10))
 
 
-def adx(df: pd.DataFrame, period: int = 14) -> Dict[str, pd.Series]:
+def adx(df: pd.DataFrame, period: int = 14) -> dict[str, pd.Series]:
     """ADX with +DI/−DI using Wilder smoothing (ewm alpha=1/period)."""
     high, low, close = df["High"], df["Low"], df["Close"]
     up   = high.diff()
@@ -89,7 +89,7 @@ def adx(df: pd.DataFrame, period: int = 14) -> Dict[str, pd.Series]:
 
 
 def stochastic(df: pd.DataFrame, k: int = 14, d: int = 3,
-               smooth: int = 3) -> Dict[str, pd.Series]:
+               smooth: int = 3) -> dict[str, pd.Series]:
     low_k  = df["Low"].rolling(k, min_periods=k).min()
     high_k = df["High"].rolling(k, min_periods=k).max()
     raw_k  = 100 * (df["Close"] - low_k) / (high_k - low_k).replace(0, np.nan)
@@ -103,7 +103,7 @@ def obv(close: pd.Series, volume: pd.Series) -> pd.Series:
     return (direction * volume).cumsum()
 
 
-def obv_trend(obv_s: pd.Series, lookback: int = 20) -> Optional[str]:
+def obv_trend(obv_s: pd.Series, lookback: int = 20) -> str | None:
     """Classify OBV as rising / falling / flat via normalized linreg slope."""
     seg = obv_s.dropna().iloc[-lookback:]
     if len(seg) < lookback:
@@ -119,7 +119,7 @@ def obv_trend(obv_s: pd.Series, lookback: int = 20) -> Optional[str]:
     return "flat"
 
 
-def rvol(volume: pd.Series, lookback: int = 20) -> Optional[float]:
+def rvol(volume: pd.Series, lookback: int = 20) -> float | None:
     """Relative volume: latest bar vs prior lookback average."""
     if len(volume) < lookback + 1:
         return None
@@ -129,7 +129,7 @@ def rvol(volume: pd.Series, lookback: int = 20) -> Optional[float]:
     return float(volume.iloc[-1]) / prior
 
 
-def pct_from_52w_high(close: pd.Series) -> Optional[float]:
+def pct_from_52w_high(close: pd.Series) -> float | None:
     """Percent below the 52-week (252-bar) high; 0.0 = at the high."""
     window = close.iloc[-252:] if len(close) >= 60 else None
     if window is None:
@@ -140,7 +140,7 @@ def pct_from_52w_high(close: pd.Series) -> Optional[float]:
     return (hi - float(close.iloc[-1])) / hi * 100.0
 
 
-def ema_stack(close: pd.Series) -> Dict:
+def ema_stack(close: pd.Series) -> dict:
     """20/50/200 EMA alignment + normalized 20-bar slope of the 50 EMA."""
     e20, e50, e200 = ema(close, 20), ema(close, 50), ema(close, 200)
 
@@ -166,7 +166,7 @@ def ema_stack(close: pd.Series) -> Dict:
 
 
 def rsi_divergence(close: pd.Series, rsi_s: pd.Series,
-                   lookback: int = 60, order: int = 5) -> Optional[str]:
+                   lookback: int = 60, order: int = 5) -> str | None:
     """
     Detect classic RSI divergence over the lookback window.
     'bearish': price makes a higher high while RSI makes a lower high.
@@ -198,7 +198,7 @@ def rsi_divergence(close: pd.Series, rsi_s: pd.Series,
     return None
 
 
-def compute_indicators(df: pd.DataFrame) -> Dict:
+def compute_indicators(df: pd.DataFrame) -> dict:
     """
     Compute all indicators once for a price DataFrame.
     Returns a flat dict of scalar values at the latest bar.
@@ -239,7 +239,7 @@ def compute_indicators(df: pd.DataFrame) -> Dict:
     vol_contracting = vol_recent < vol_prior * 0.90 if vol_prior > 0 else False
 
     # ── Extended indicator set (all additive; None when history too short) ────
-    def _opt(s: pd.Series) -> Optional[float]:
+    def _opt(s: pd.Series) -> float | None:
         if len(s) == 0:
             return None
         v = s.iloc[-1]
@@ -301,7 +301,7 @@ def compute_indicators(df: pd.DataFrame) -> Dict:
 # These are the base reliability rates before any contextual adjustments.
 # Source: Bulkowski's "Encyclopedia of Chart Patterns" + backtesting literature.
 
-PATTERN_WIN_RATES: Dict[str, int] = {
+PATTERN_WIN_RATES: dict[str, int] = {
     # Confirmed chart patterns (structure + neckline break)
     "Head & Shoulders":       74,
     "Inv Head & Shoulders":   72,
@@ -473,8 +473,7 @@ def forming_confidence(p: dict, df: pd.DataFrame, indicators: dict) -> dict:
         else:                   adj -= 8
 
     # ── MACD alignment ───────────────────────────────────────────────────────
-    if   is_bull  and macd_hi > 0: adj += 5
-    elif not is_bull and macd_hi < 0: adj += 5
+    if   (is_bull  and macd_hi > 0) or (not is_bull and macd_hi < 0): adj += 5
     else:                          adj -= 3
 
     # ── Volume contraction (coiling = good for forming patterns) ─────────────

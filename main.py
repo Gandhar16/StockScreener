@@ -1,9 +1,16 @@
-import os
 import argparse
 import logging
-from stock_scanner.config import load_config_from_file, ScannerConfig
+import os
+
+from stock_scanner.config import ScannerConfig, load_config_from_file
+from stock_scanner.output import (
+    generate_markdown_report,
+    save_buys_to_excel,
+    save_to_csv,
+    save_to_markdown,
+)
 from stock_scanner.scanner import StockScanner
-from stock_scanner.output import save_to_csv, save_to_markdown, generate_markdown_report, save_buys_to_excel
+
 
 def setup_logging():
     logging.basicConfig(
@@ -42,7 +49,7 @@ def parse_args():
 def safe_print(text: str):
     import sys
     try:
-        print(text)
+        pass
     except UnicodeEncodeError:
         # Fallback to replacing unencodable characters with equivalent representation or '?'
         encoding = sys.stdout.encoding or 'utf-8'
@@ -52,9 +59,9 @@ def safe_print(text: str):
 def main():
     setup_logging()
     logger = logging.getLogger("main")
-    
+
     args = parse_args()
-    
+
     # 1. Load configuration
     if os.path.exists(args.config):
         logger.info(f"Loading configuration from {args.config}...")
@@ -62,7 +69,7 @@ def main():
     else:
         logger.warning(f"Config file {args.config} not found. Using default configuration.")
         config = ScannerConfig()
-        
+
     # 2. Apply command-line overrides
     if args.mode:
         config.mode = args.mode
@@ -81,11 +88,11 @@ def main():
 
     # 4. Save and export results
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     csv_path = os.path.join(args.output_dir, "scan_results.csv")
     md_path = os.path.join(args.output_dir, "scan_report.md")
     xlsx_path = os.path.join(args.output_dir, "buy_recommendations.xlsx")
-    
+
     save_to_csv(results_df, csv_path)
     save_to_markdown(results_df, md_path, config.mode)
     save_buys_to_excel(results_df, xlsx_path)

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 PEAK = 1
 VALLEY = -1
 
@@ -12,27 +13,27 @@ def identify_initial_pivot(X, up_thresh, down_thresh):
     min_x = x_0
     max_t = 0
     min_t = 0
-    
+
     up_thresh_val = up_thresh + 1
     down_thresh_val = down_thresh + 1
-    
+
     for t in range(1, len(X)):
         x_t = X[t]
         ratio_min = x_t / (min_x if min_x != 0 else 1e-8)
         if ratio_min >= up_thresh_val:
             return VALLEY if min_t == 0 else PEAK
-        
+
         ratio_max = x_t / (max_x if max_x != 0 else 1e-8)
         if ratio_max <= down_thresh_val:
             return PEAK if max_t == 0 else VALLEY
-        
+
         if x_t > max_x:
             max_x = x_t
             max_t = t
         if x_t < min_x:
             min_x = x_t
             min_t = t
-            
+
     t_n = len(X) - 1
     return VALLEY if x_0 < X[t_n] else PEAK
 
@@ -42,7 +43,7 @@ def peak_valley_pivots(X, up_thresh, down_thresh):
     """
     if down_thresh > 0:
         raise ValueError('The down_thresh must be negative.')
-        
+
     initial_pivot = identify_initial_pivot(X, up_thresh, down_thresh)
     t_n = len(X)
     pivots = np.zeros(t_n, dtype=np.int_)
@@ -50,10 +51,10 @@ def peak_valley_pivots(X, up_thresh, down_thresh):
     last_pivot_t = 0
     last_pivot_x = X[0]
     pivots[0] = initial_pivot
-    
+
     up_thresh_val = up_thresh + 1
     down_thresh_val = down_thresh + 1
-    
+
     for t in range(1, t_n):
         x = X[t]
         r = x / (last_pivot_x if last_pivot_x != 0 else 1e-8)
@@ -77,10 +78,10 @@ def peak_valley_pivots(X, up_thresh, down_thresh):
             elif x > last_pivot_x:
                 last_pivot_t = t
                 last_pivot_x = x
-                
+
     return pivots
 
-from .exceptions import InvalidParameterException, InvalidArgumentException
+from .exceptions import InvalidArgumentException, InvalidParameterException
 
 
 class BaseLevelFinder:

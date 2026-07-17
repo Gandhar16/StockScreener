@@ -1,5 +1,7 @@
 import logging
+
 import pandas as pd
+
 from stock_scanner.config import ScannerConfig
 from stock_scanner.data.provider import DataProvider
 from stock_scanner.engine.fundamental import FundamentalEngine
@@ -24,15 +26,15 @@ class StockScanner:
         Returns a sorted DataFrame of results with fundamental and technical structure columns.
         """
         logger.info(f"Starting Stock Scanner in '{self.config.mode}' mode...")
-        
+
         if self.config.mode == "single_stock":
             if not self.config.tickers:
                 logger.error("No tickers provided for single_stock analysis.")
                 return pd.DataFrame()
-            
+
             # Directly run fundamental scoring, bypassing yfinance price/volume pre-filter
             results_df = self.engine.analyze_tickers(self.config.tickers)
-            
+
             # Fetch latest price using yfinance to populate in output if missing
             try:
                 price_df = self.provider.fetch_and_filter_prices(self.config.tickers)
@@ -44,10 +46,10 @@ class StockScanner:
                     )
             except Exception as e:
                 logger.warning(f"Failed to fetch market prices for single stock mode details: {e}")
-                
+
             results_df = self._run_technical_analysis(results_df)
             return results_df
-            
+
         elif self.config.mode == "market_scan":
             # 1. Fetch initial candidate ticker list
             candidates = self.config.tickers if self.config.tickers else self.provider.get_default_tickers()
@@ -74,10 +76,10 @@ class StockScanner:
                 on="ticker",
                 how="left"
             )
-            
+
             # Sort by total score descending
             final_df = final_df.sort_values(by="total_score", ascending=False).reset_index(drop=True)
-            
+
             # 5. Technical Market Structure Analysis
             final_df = self._run_technical_analysis(final_df)
             return final_df

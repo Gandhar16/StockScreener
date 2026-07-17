@@ -118,7 +118,8 @@ class TestRsPercentile:
         vals = {"A": 30.0, "B": 0.0, "C": -30.0}
         pct = rs_percentile(vals)
         assert pct["A"] > pct["B"] > pct["C"]
-        assert 1 <= pct["C"] and pct["A"] <= 99
+        assert pct["C"] >= 1
+        assert pct["A"] <= 99
 
     def test_none_values_stay_none(self):
         pct = rs_percentile({"A": 10.0, "B": None, "C": -5.0})

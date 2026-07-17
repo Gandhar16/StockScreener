@@ -1,6 +1,7 @@
 import math
+from typing import Literal
+
 import yaml
-from typing import List, Literal, Optional, Dict, Any, Tuple
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
-    
+
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     alpha_vantage_api_key: str = ""
@@ -28,7 +29,7 @@ class FilterConfig(BaseModel):
     min_volume: float = Field(default=100_000, description="Minimum average daily volume")
     min_current_ratio: float = Field(default=1.0, description="Minimum current ratio")
     max_debt_to_equity: float = Field(default=2.0, description="Maximum debt-to-equity ratio")
-    max_pe_ratio: Optional[float] = Field(default=40.0, description="Maximum P/E ratio")
+    max_pe_ratio: float | None = Field(default=40.0, description="Maximum P/E ratio")
 
 
 class CategoryWeights(BaseModel):
@@ -89,23 +90,23 @@ class BatchConfig(BaseModel):
 
 
 class ScoringRangeConfig(BaseModel):
-    pe_ratio: List[float] = Field(default_factory=lambda: [8.0, 36.0])
-    current_ratio: List[float] = Field(default_factory=lambda: [1.0, 2.5])
-    debt_to_equity: List[float] = Field(default_factory=lambda: [0.5, 2.0])
-    revenue_growth_yoy: List[float] = Field(default_factory=lambda: [0.03, 0.21])
-    eps_growth_yoy: List[float] = Field(default_factory=lambda: [-0.05, 0.165])
-    rd_intensity: List[float] = Field(default_factory=lambda: [0.0, 0.1])
-    roic: List[float] = Field(default_factory=lambda: [0.02, 0.29])
-    operating_margin: List[float] = Field(default_factory=lambda: [0.07, 0.32])
-    fcf_to_net_income: List[float] = Field(default_factory=lambda: [0.5, 1.5])
+    pe_ratio: list[float] = Field(default_factory=lambda: [8.0, 36.0])
+    current_ratio: list[float] = Field(default_factory=lambda: [1.0, 2.5])
+    debt_to_equity: list[float] = Field(default_factory=lambda: [0.5, 2.0])
+    revenue_growth_yoy: list[float] = Field(default_factory=lambda: [0.03, 0.21])
+    eps_growth_yoy: list[float] = Field(default_factory=lambda: [-0.05, 0.165])
+    rd_intensity: list[float] = Field(default_factory=lambda: [0.0, 0.1])
+    roic: list[float] = Field(default_factory=lambda: [0.02, 0.29])
+    operating_margin: list[float] = Field(default_factory=lambda: [0.07, 0.32])
+    fcf_to_net_income: list[float] = Field(default_factory=lambda: [0.5, 1.5])
 
 
 class TechnicalConfig(BaseModel):
     history_period: str = Field(default="2y", description="Historical period for technical analysis")
-    
+
     class MTFConfig(BaseModel):
         aligned_threshold: int = Field(default=55, description="Weekly alignment score needed to count as aligned")
-    
+
     class RSConfig(BaseModel):
         benchmark_map: dict = Field(default_factory=lambda: {
             ".NS": "^NSEI",
@@ -114,7 +115,7 @@ class TechnicalConfig(BaseModel):
         default_benchmark: str = Field(default="^GSPC")
         soft_floor: float = Field(default=-5.0, description="Bull setups need Mansfield RS above this (or improving)")
         hard_floor: float = Field(default=-20.0, description="Below this = severe laggard, hard reject")
-    
+
     class GatesConfig(BaseModel):
         account_size: float = Field(default=100000)
         risk_per_trade_pct: float = Field(default=0.01)
@@ -124,7 +125,7 @@ class TechnicalConfig(BaseModel):
         max_position_pct: float = Field(default=0.15)
         min_rr_high_conviction: float = Field(default=2.0)
         min_rr_floor: float = Field(default=1.5)
-    
+
     class SetupScoreConfig(BaseModel):
         weights: dict = Field(default_factory=lambda: {
             "pattern": 0.35,
@@ -133,7 +134,7 @@ class TechnicalConfig(BaseModel):
             "volume": 0.15,
             "rr": 0.15,
         })
-    
+
     mtf: MTFConfig = Field(default_factory=MTFConfig)
     rs: RSConfig = Field(default_factory=RSConfig)
     gates: GatesConfig = Field(default_factory=GatesConfig)
@@ -156,7 +157,7 @@ class SectorProfileConfig(BaseModel):
 
 class ScannerConfig(BaseModel):
     mode: Literal["market_scan", "single_stock"] = "market_scan"
-    tickers: List[str] = Field(default_factory=list)
+    tickers: list[str] = Field(default_factory=list)
     filters: FilterConfig = Field(default_factory=FilterConfig)
     weights: CategoryWeights = Field(default_factory=CategoryWeights)
     graham_safety: GrahamSafetyWeights = Field(default_factory=GrahamSafetyWeights)
@@ -166,18 +167,18 @@ class ScannerConfig(BaseModel):
     scoring_ranges: ScoringRangeConfig = Field(default_factory=ScoringRangeConfig)
     technical: TechnicalConfig = Field(default_factory=TechnicalConfig)
     fundamental_extras: FundamentalExtrasConfig = Field(default_factory=FundamentalExtrasConfig)
-    sector_profiles: Dict[str, SectorProfileConfig] = Field(default_factory=dict)
+    sector_profiles: dict[str, SectorProfileConfig] = Field(default_factory=dict)
 
 
 def load_config_from_file(config_path: str) -> ScannerConfig:
     """Load configuration from YAML file."""
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         data = yaml.safe_load(f) or {}
-    
+
     # Process nested structures
     if "filters" in data and isinstance(data["filters"], dict):
         data["filters"] = FilterConfig(**data["filters"])
-    
+
     if "weights" in data and isinstance(data["weights"], dict):
         w = data["weights"]
         # Handle category_weights
@@ -198,7 +199,7 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
         # If no nested, create CategoryWeights from the top-level
         else:
             data["weights"] = CategoryWeights(**w)
-    
+
     # Top-level weight objects
     if "graham_safety" in data and isinstance(data["graham_safety"], dict):
         data["graham_safety"] = GrahamSafetyWeights(**data["graham_safety"])
@@ -206,7 +207,7 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
         data["fisher_growth"] = FisherGrowthWeights(**data["fisher_growth"])
     if "buffett_quality" in data and isinstance(data["buffett_quality"], dict):
         data["buffett_quality"] = BuffettQualityWeights(**data["buffett_quality"])
-    
+
     if "batch" in data and isinstance(data["batch"], dict):
         data["batch"] = BatchConfig(**data["batch"])
     if "scoring_ranges" in data and isinstance(data["scoring_ranges"], dict):
@@ -215,7 +216,7 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
         data["technical"] = TechnicalConfig(**data["technical"])
     if "fundamental_extras" in data and isinstance(data["fundamental_extras"], dict):
         data["fundamental_extras"] = FundamentalExtrasConfig(**data["fundamental_extras"])
-    
+
     if "sector_profiles" in data:
         profiles = {}
         for sector, profile in data["sector_profiles"].items():
@@ -243,7 +244,7 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
                         prof["buffett_quality"] = BuffettQualityWeights(**pw["buffett_quality"])
                 profiles[sector] = SectorProfileConfig(**prof)
         data["sector_profiles"] = profiles
-    
+
     return ScannerConfig(**data)
 
 

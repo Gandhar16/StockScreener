@@ -15,9 +15,11 @@ Status flow
            position closes and moves to history
 """
 
-import os, sqlite3, json
+import json
+import os
+import sqlite3
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 DB_PATH = "reports/calls.db"
 
@@ -84,7 +86,7 @@ def init_db():
 
 # ── upsert ────────────────────────────────────────────────────────────────────
 
-def upsert_call(call: Dict[str, Any], call_type: str) -> int:
+def upsert_call(call: dict[str, Any], call_type: str) -> int:
     """
     Insert a new call or refresh an existing ACTIVE/HOLD/REVIEW call
     for the same ticker + call_type.  Returns the row id.
@@ -154,7 +156,7 @@ def upsert_call(call: Dict[str, Any], call_type: str) -> int:
 
 # ── queries ───────────────────────────────────────────────────────────────────
 
-def get_active_calls() -> List[Dict]:
+def get_active_calls() -> list[dict]:
     """Return all open positions (BUY or HOLD)."""
     init_db()
     with _connect() as conn:
@@ -165,7 +167,7 @@ def get_active_calls() -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_all_calls(limit: int = 200) -> List[Dict]:
+def get_all_calls(limit: int = 200) -> list[dict]:
     init_db()
     with _connect() as conn:
         rows = conn.execute(
@@ -174,7 +176,7 @@ def get_all_calls(limit: int = 200) -> List[Dict]:
     return [dict(r) for r in rows]
 
 
-def get_call_history(call_id: int) -> List[Dict]:
+def get_call_history(call_id: int) -> list[dict]:
     init_db()
     with _connect() as conn:
         rows = conn.execute(
@@ -189,11 +191,10 @@ def get_call_history(call_id: int) -> List[Dict]:
 def update_call(call_id: int, current_price: float, status: str,
                 pnl_pct: float, pnl_abs: float, notes: str,
                 recommendation: str = "",
-                conviction: Optional[str] = None,
-                sentiment_label: Optional[str] = None,
-                exit_price: Optional[float] = None):
+                conviction: str | None = None,
+                sentiment_label: str | None = None,
+                exit_price: float | None = None):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    is_closed = exit_price is not None
 
     with _connect() as conn:
         conn.execute("""
@@ -239,8 +240,8 @@ def close_call(call_id: int, exit_price: float, notes: str = "Manually sold"):
 # ── portfolio export ──────────────────────────────────────────────────────────
 
 def export_portfolio_json(out_path: str = "dashboard/portfolio.json",
-                          equity_curves: Optional[Dict] = None,
-                          portfolio_curve: Optional[List] = None):
+                          equity_curves: dict | None = None,
+                          portfolio_curve: list | None = None):
     """Write a portfolio.json for the dashboard to consume."""
     init_db()
     all_calls  = get_all_calls()
@@ -281,7 +282,7 @@ def export_portfolio_json(out_path: str = "dashboard/portfolio.json",
     return out_path
 
 
-def _clean(row: Dict) -> Dict:
+def _clean(row: dict) -> dict:
     """Strip raw_json blob and round floats for the dashboard."""
     out = {k: v for k, v in row.items() if k != "raw_json"}
     for k in ("pnl_pct", "upside_pct", "sentiment_score"):

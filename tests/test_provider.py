@@ -1,8 +1,11 @@
-import pytest
-import pandas as pd
 from unittest.mock import patch
-from stock_scanner.data.provider import DataProvider
+
+import pandas as pd
+import pytest
+
 from stock_scanner.config import ScannerConfig
+from stock_scanner.data.provider import DataProvider
+
 
 @pytest.fixture
 def sample_config():
@@ -25,7 +28,7 @@ def test_fetch_and_filter_tickers(mock_download, sample_config):
         ("Close", "AAPL"), ("Close", "MSFT"), ("Close", "PENNY"), ("Close", "LOWVOL"),
         ("Volume", "AAPL"), ("Volume", "MSFT"), ("Volume", "PENNY"), ("Volume", "LOWVOL")
     ])
-    
+
     dates = pd.date_range(end="2026-06-12", periods=5)
     data = [
         # Close prices (AAPL=150, MSFT=300, PENNY=2, LOWVOL=100)
@@ -41,7 +44,7 @@ def test_fetch_and_filter_tickers(mock_download, sample_config):
 
     provider = DataProvider(sample_config)
     filtered_df = provider.fetch_and_filter_prices(sample_config.tickers)
-    
+
     # AAPL and MSFT should pass (price >= 5, volume >= 100k)
     # PENNY should fail (price = 2.4 < 5.0)
     # LOWVOL should fail (average volume = 12k < 100k)
@@ -50,7 +53,7 @@ def test_fetch_and_filter_tickers(mock_download, sample_config):
     assert "MSFT" in passed_tickers
     assert "PENNY" not in passed_tickers
     assert "LOWVOL" not in passed_tickers
-    
+
     # Check that prices and volume mean are correct
     aapl_row = filtered_df[filtered_df["ticker"] == "AAPL"].iloc[0]
     assert aapl_row["last_price"] == 154.0

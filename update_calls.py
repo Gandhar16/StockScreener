@@ -15,10 +15,11 @@ Usage:
     python update_calls.py --close 42 195.00  # manually close call id=42 at $195
 """
 
-import sys, argparse, logging
+import argparse
+import logging
+import sys
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Optional
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -27,10 +28,16 @@ import pandas as pd
 import yfinance as yf
 
 from stock_scanner.engine.calls_db import (
-    get_active_calls, update_call, close_call, export_portfolio_json, init_db
+    close_call,
+    export_portfolio_json,
+    get_active_calls,
+    init_db,
+    update_call,
 )
 
 logging.basicConfig(level=logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 NOTIONAL = 10_000   # assumed $ per call for P&L display
 
@@ -38,7 +45,7 @@ NOTIONAL = 10_000   # assumed $ per call for P&L display
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def fetch_pnl_curve(ticker: str, call_date: str, entry_price: float,
-                    call_type: str) -> List[Dict]:
+                    call_type: str) -> list[dict]:
     """Daily P&L % from call_date to today."""
     try:
         raw = yf.download(ticker, start=call_date, auto_adjust=True, progress=False)
@@ -58,9 +65,9 @@ def fetch_pnl_curve(ticker: str, call_date: str, entry_price: float,
         return []
 
 
-def compute_portfolio_curve(curves: Dict[str, List[Dict]]) -> List[Dict]:
+def compute_portfolio_curve(curves: dict[str, list[dict]]) -> list[dict]:
     """Average daily P&L across all calls, aligned by date."""
-    date_vals: Dict[str, list] = defaultdict(list)
+    date_vals: dict[str, list] = defaultdict(list)
     for curve in curves.values():
         for pt in curve:
             date_vals[pt["date"]].append(pt["pnl_pct"])
@@ -72,7 +79,7 @@ def compute_portfolio_curve(curves: Dict[str, List[Dict]]) -> List[Dict]:
     return combined
 
 
-def fetch_price(ticker: str) -> Optional[float]:
+def fetch_price(ticker: str) -> float | None:
     try:
         info = yf.Ticker(ticker).fast_info
         return float(info.last_price or info.previous_close or 0) or None
@@ -83,15 +90,12 @@ def fetch_price(ticker: str) -> Optional[float]:
 def calc_pnl(call_type: str, entry: float, current: float):
     if not entry or not current:
         return 0.0, 0.0
-    if call_type == "SELL":
-        pct = (entry - current) / entry
-    else:
-        pct = (current - entry) / entry
+    pct = (entry - current) / entry if call_type == "SELL" else (current - entry) / entry
     return round(pct, 6), round(pct * NOTIONAL, 2)
 
 
-def determine_status(entry: float, stop: Optional[float],
-                     t1: Optional[float], current: float,
+def determine_status(entry: float, stop: float | None,
+                     t1: float | None, current: float,
                      pnl_pct: float, sentiment_label: str,
                      call_type: str) -> str:
     """
@@ -122,10 +126,10 @@ def determine_status(entry: float, stop: Optional[float],
     return "HOLD"
 
 
-def build_notes(call: Dict, current: float, status: str,
+def build_notes(call: dict, current: float, status: str,
                 pnl_pct: float, sentiment_label: str) -> tuple:
     """Returns (notes_str, recommendation_str)."""
-    entry    = call.get("entry_price") or current
+    _entry    = call.get("entry_price") or current
     stop     = call.get("stop_loss")
     t1       = call.get("t1")
     pct_disp = f"{pnl_pct*100:+.1f}%"
@@ -187,10 +191,10 @@ def refresh_all(run_sentiment: bool = True):
     init_db()
     calls = get_active_calls()
     if not calls:
-        print("No active calls in database.")
+        logger.info("No active calls in database.")
         return
 
-    print(f"\nRefreshing {len(calls)} active calls ...\n")
+    logger.info(f"\nRefreshing {len(calls)} active calls ...\n")
 
     # Batch sentiment refresh (uses 4-hour cache so usually instant)
     sentiment_map = {}
@@ -201,7 +205,7 @@ def refresh_all(run_sentiment: bool = True):
             engine = SentimentEngine()
             sentiment_map = engine.analyze_batch(tickers)
         except Exception as e:
-            print(f"  [WARN] Sentiment refresh skipped: {e}")
+            logger.warning(f"  Sentiment refresh skipped: {e}")
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -213,7 +217,7 @@ def refresh_all(run_sentiment: bool = True):
 
         current = fetch_price(ticker)
         if current is None:
-            print(f"  {ticker:<12} ⚠  Could not fetch price — skipping")
+            logger.warning(f"  {ticker:<12}  Could not fetch price — skipping")
             continue
 
         pnl_pct, pnl_abs = calc_pnl(call_type, entry, current)
@@ -245,16 +249,12 @@ def refresh_all(run_sentiment: bool = True):
             exit_price     = current if status == "SELL" else None,
         )
 
-        pnl_disp = f"{pnl_pct*100:+.1f}%"
-        flag = "🔴" if status == "SELL" else "🟢" if status == "BUY" else "🟡"
-        print(f"  {flag} {ticker:<12} {call_type:<12} "
-              f"entry={entry or 0:.2f}  now={current:.2f}  "
-              f"P&L={pnl_disp:>7}  [{status}]  sent={sent_label}")
+        f"{pnl_pct*100:+.1f}%"
 
     # Build P&L curves for active calls
-    print("\n  Building P&L curves ...")
+    logger.info("\n  Building P&L curves ...")
     active_after = get_active_calls()
-    equity_curves: Dict[str, List] = {}
+    equity_curves: dict[str, list] = {}
     for call in active_after:
         ticker     = call["ticker"]
         call_date  = (call.get("call_date") or "")[:10]
@@ -266,7 +266,7 @@ def refresh_all(run_sentiment: bool = True):
                 # Use ticker+type as key to avoid collisions (e.g., MSFT SWING vs LONG-TERM)
                 key = f"{ticker} ({call_type[:2]})"
                 equity_curves[key] = curve
-                print(f"    {key}: {len(curve)} days")
+                logger.debug(f"    {key}: {len(curve)} days")
 
     portfolio_curve = compute_portfolio_curve(equity_curves)
 
@@ -275,8 +275,8 @@ def refresh_all(run_sentiment: bool = True):
         equity_curves=equity_curves,
         portfolio_curve=portfolio_curve,
     )
-    print(f"\n  Portfolio exported → {path}")
-    print(f"  Updated at {now_str}\n")
+    logger.info(f"\n  Portfolio exported → {path}")
+    logger.info(f"  Updated at {now_str}\n")
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
@@ -297,7 +297,7 @@ def main():
         call_id    = int(args.close[0])
         exit_price = float(args.close[1])
         close_call(call_id, exit_price)
-        print(f"  Call #{call_id} closed at {exit_price:.2f}")
+        logger.info(f"  Call #{call_id} closed at {exit_price:.2f}")
         export_portfolio_json()
         return
 

@@ -13,9 +13,7 @@ the alignment is None (pass-through), never a fail — critical for young
 NSE listings.
 """
 
-from typing import Dict, Optional
 
-import numpy as np
 import pandas as pd
 
 from .indicators import ema, macd, rsi, sma
@@ -47,7 +45,7 @@ def resample_weekly(df: pd.DataFrame) -> pd.DataFrame:
     return weekly
 
 
-def weekly_state(weekly_df: pd.DataFrame) -> Optional[Dict]:
+def weekly_state(weekly_df: pd.DataFrame) -> dict | None:
     """
     Summarize the weekly timeframe at the latest bar.
     Returns None when history is too short to say anything (< MIN_WEEKLY_BARS).
@@ -59,7 +57,7 @@ def weekly_state(weekly_df: pd.DataFrame) -> Optional[Dict]:
     close = weekly_df["Close"]
     px = float(close.iloc[-1])
 
-    def _last(s: pd.Series) -> Optional[float]:
+    def _last(s: pd.Series) -> float | None:
         v = s.iloc[-1]
         return float(v) if not pd.isna(v) else None
 
@@ -97,8 +95,8 @@ def weekly_state(weekly_df: pd.DataFrame) -> Optional[Dict]:
     }
 
 
-def mtf_alignment(direction: str, weekly: Optional[Dict],
-                  config: Optional[Dict] = None) -> Dict:
+def mtf_alignment(direction: str, weekly: dict | None,
+                  config: dict | None = None) -> dict:
     """
     Score how well a daily setup aligns with the weekly trend.
 
@@ -152,10 +150,7 @@ def mtf_alignment(direction: str, weekly: Optional[Dict],
     if hist_w is not None:
         w = weights["macd_w"]
         available += w
-        if is_bull:
-            good = hist_w > 0 or (rising is True)
-        else:
-            good = hist_w < 0 or (rising is False)
+        good = hist_w > 0 or rising is True if is_bull else hist_w < 0 or rising is False
         if good:
             earned += w
             reasons.append("weekly MACD supportive")
@@ -187,7 +182,7 @@ def mtf_alignment(direction: str, weekly: Optional[Dict],
 
 
 def analyze_mtf(df: pd.DataFrame, direction: str,
-                config: Optional[Dict] = None) -> Dict:
+                config: dict | None = None) -> dict:
     """Convenience wrapper: daily OHLCV in, alignment dict out."""
     weekly = weekly_state(resample_weekly(df))
     return mtf_alignment(direction, weekly, config)

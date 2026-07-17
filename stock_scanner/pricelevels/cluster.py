@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.cluster import AgglomerativeClustering
 
-from ._abstract import BaseZigZagLevels, BaseLevelFinder
+from ._abstract import BaseLevelFinder, BaseZigZagLevels
 
 
 def _cluster_prices_to_levels(prices, distance, level_selector='mean'):

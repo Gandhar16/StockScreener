@@ -1,11 +1,11 @@
 """Type hints and aliases for the stock scanner."""
 
 from __future__ import annotations
-from typing import TypeAlias, TypedDict, Literal, NotRequired
-from datetime import datetime
-import pandas as pd
-import numpy as np
 
+from datetime import datetime
+from typing import Literal, NotRequired, TypeAlias, TypedDict
+
+import pandas as pd
 
 # Primitive types
 Ticker: TypeAlias = str
@@ -22,11 +22,10 @@ SignalType: TypeAlias = Literal["BUY", "SELL", "HOLD", "WATCH-LONG", "WATCH-SHOR
 ConvictionLevel: TypeAlias = Literal["HIGH", "MEDIUM", "LOW"]
 
 # Configuration types
-PhaseConfig = TypedDict('PhaseConfig', {
-    'start': str,      # ISO date
-    'end': str,        # ISO date
-    'as_of': int,      # year for point-in-time statements
-})
+class PhaseConfig(TypedDict):
+    start: str
+    end: str
+    as_of: int
 
 ScannerMode: TypeAlias = Literal["market_scan", "single_stock"]
 BenchmarkMap: TypeAlias = dict[str, str]  # ticker suffix -> benchmark symbol
@@ -134,37 +133,34 @@ class ScoredStock(TypedDict):
 
 # Result types
 ScanResult = list[ScoredStock]
-EquityCall = TypedDict('EquityCall', {
-    'ticker': str,
-    'type': Literal['long_term', 'swing', 'sell'],
-    'score': float,
-    'conviction': ConvictionLevel,
-    'entry': NotRequired[float],
-    'stop': NotRequired[float],
-    'target': NotRequired[float],
-    'thesis': NotRequired[str],
-    'risks': NotRequired[list[str]],
-    'technical': NotRequired[TechnicalMetrics],
-    'fundamental': NotRequired[FundamentalMetrics],
-    'entry_signal': NotRequired[EntrySignal],
-    'timestamp': datetime,
-})
+class EquityCall(TypedDict):
+    ticker: str
+    type: Literal['long_term', 'swing', 'sell']
+    score: float
+    conviction: ConvictionLevel
+    entry: NotRequired[float]
+    stop: NotRequired[float]
+    target: NotRequired[float]
+    thesis: NotRequired[str]
+    risks: NotRequired[list[str]]
+    technical: NotRequired[TechnicalMetrics]
+    fundamental: NotRequired[FundamentalMetrics]
+    entry_signal: NotRequired[EntrySignal]
+    timestamp: datetime
 
 
 # Pipeline phase results
-PhaseResult = TypedDict('PhaseResult', {
-    'phase': int,
-    'tickers_in': int,
-    'tickers_out': int,
-    'results': list[ScoredStock],
-    'duration_seconds': float,
-    'timestamp': datetime,
-})
+class PhaseResult(TypedDict):
+    phase: int
+    tickers_in: int
+    tickers_out: int
+    results: list[ScoredStock]
+    duration_seconds: float
+    timestamp: datetime
 
-PipelineResult = TypedDict('PipelineResult', {
-    'phases': list[PhaseResult],
-    'equity_calls': list[EquityCall],
-    'benchmark_performance': dict,
-    'portfolio_nav': pd.Series,
-    'metadata': dict,
-})
+class PipelineResult(TypedDict):
+    phases: list[PhaseResult]
+    equity_calls: list[EquityCall]
+    benchmark_performance: dict
+    portfolio_nav: pd.Series
+    metadata: dict

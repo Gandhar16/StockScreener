@@ -1,25 +1,24 @@
 """FastAPI server for StockCalls dashboard integration."""
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-import uvicorn
 import json
-import os
-from datetime import datetime
-from pathlib import Path
 
 # Import stock_scanner modules
 import sys
+from datetime import datetime
+from pathlib import Path
+
+import uvicorn
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
 sys.path.insert(0, str(Path(__file__).parent))
 
-from stock_scanner.config import load_config_from_file, ScannerConfig
-from stock_scanner.scanner import StockScanner
-from stock_scanner.engine.calls_db import export_portfolio_json
+from stock_scanner.config import ScannerConfig, load_config_from_file
 from stock_scanner.engine.backtest import Backtester
+from stock_scanner.scanner import StockScanner
 
 app = FastAPI(
     title="StockCalls API",
@@ -42,7 +41,7 @@ DASHBOARD_DIR = Path("dashboard/dist")
 
 # Models
 class ScanRequest(BaseModel):
-    tickers: Optional[List[str]] = None
+    tickers: list[str] | None = None
     mode: str = "market_scan"
 
 class BacktestRequest(BaseModel):
@@ -52,11 +51,11 @@ class BacktestRequest(BaseModel):
     rebalance_days: int = 30
 
 class SettingsRequest(BaseModel):
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-    alpha_vantage_key: Optional[str] = None
-    polygon_key: Optional[str] = None
-    finnhub_key: Optional[str] = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    alpha_vantage_key: str | None = None
+    polygon_key: str | None = None
+    finnhub_key: str | None = None
     scan_schedule: str = "0 6 * * *"
     backtest_default_phases: int = 3
     data_cache_ttl: int = 24
@@ -82,13 +81,13 @@ async def get_equity_calls():
             with open(calls_file) as f:
                 data = json.load(f)
                 return data
-        
+
         # Fallback to dashboard file
         dash_file = Path("dashboard/equity_calls.json")
         if dash_file.exists():
             with open(dash_file) as f:
                 return json.load(f)
-        
+
         return {"calls": [], "timestamp": datetime.now().isoformat()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -108,7 +107,7 @@ async def get_dashboard_data():
     """Get aggregated dashboard data."""
     calls_data = await get_equity_calls()
     calls = calls_data.get("calls", [])
-    
+
     return {
         "equity_calls": calls,
         "long_term_calls": [c for c in calls if c.get("type") == "long_term"],
@@ -143,17 +142,17 @@ async def run_scan(request: ScanRequest):
             config = load_config_from_file(config_path)
         else:
             config = ScannerConfig()
-        
+
         if request.tickers:
             config.tickers = request.tickers
         config.mode = request.mode
-        
+
         scanner = StockScanner(config)
         results_df = scanner.run()
-        
+
         if results_df.empty:
             return {"results": [], "count": 0}
-        
+
         # Convert to records
         results = results_df.to_dict(orient="records")
         return {"results": results, "count": len(results)}
@@ -222,14 +221,14 @@ async def save_settings(settings: SettingsRequest):
 async def test_telegram(request: TelegramTestRequest):
     """Send test Telegram message."""
     import requests
-    
+
     url = f"https://api.telegram.org/bot{request.bot_token}/sendMessage"
     payload = {
         "chat_id": request.chat_id,
         "text": "🧪 StockCalls test message - configuration successful!",
         "parse_mode": "HTML"
     }
-    
+
     try:
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code == 200:

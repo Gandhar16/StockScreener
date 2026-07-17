@@ -1,9 +1,9 @@
 import logging
-from typing import Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SECTOR_CONFIGS: Dict[str, Dict[str, Any]] = {
+DEFAULT_SECTOR_CONFIGS: dict[str, dict[str, Any]] = {
     "Software/SaaS": {
         "relevant_metrics": ["revenue_growth", "gross_margin", "fcf_margin", "shares_growth", "rule_of_40"],
         "irrelevant_metrics": ["current_ratio", "debt_to_equity", "price_to_book"],
@@ -132,44 +132,44 @@ DEFAULT_SECTOR_CONFIGS: Dict[str, Dict[str, Any]] = {
     }
 }
 
-def get_sector_config(sector_name: str, industry_name: str = "") -> Dict[str, Any]:
+def get_sector_config(sector_name: str, industry_name: str = "") -> dict[str, Any]:
     """
     Resolves the sector and industry details to the best-matching sector config.
     """
     if not sector_name:
         return DEFAULT_SECTOR_CONFIGS["General"]
-        
+
     s_clean = str(sector_name).strip().lower()
     ind_clean = str(industry_name).strip().lower() if industry_name else ""
-    
+
     # Check technology sector specifically to distinguish Software from Semiconductors
     if "technology" in s_clean:
         if "semiconductor" in ind_clean:
             return DEFAULT_SECTOR_CONFIGS["Semiconductors"]
         else:
             return DEFAULT_SECTOR_CONFIGS["Software/SaaS"]
-            
+
     if "financial" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Banks/Financials"]
-        
+
     if "utilities" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Utilities"]
-        
+
     if "consumer defensive" in s_clean or "consumer staple" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Consumer Staples"]
-        
+
     if "industrials" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Industrials"]
-        
+
     if "energy" in s_clean or "commodity" in s_clean or "basic materials" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Energy/Commodities"]
-        
+
     if "healthcare" in s_clean:
         return DEFAULT_SECTOR_CONFIGS["Healthcare/Pharma"]
-        
+
     # Fallbacks based on string matching
     for key in DEFAULT_SECTOR_CONFIGS:
         if key.lower() in s_clean or s_clean in key.lower():
             return DEFAULT_SECTOR_CONFIGS[key]
-            
+
     return DEFAULT_SECTOR_CONFIGS["General"]

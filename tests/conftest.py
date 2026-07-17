@@ -1,8 +1,8 @@
 """Pytest configuration and fixtures."""
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
 
 @pytest.fixture
@@ -39,13 +39,9 @@ def sample_metrics():
         "liabilities_ttm": 200_000_000,
         "net_income_3y_avg": 80_000_000,
         "shares_growth_3y": 0.02,
-        "fcf_to_net_income_ttm": 1.2,
         "fcf_to_net_income_3y_avg": 1.1,
         "revenue_growth_ttm": 0.10,
-        "revenue_growth_3y_avg": 0.15,
         "eps_growth_ttm": 0.12,
-        "eps_growth_3y_avg": 0.12,
-        "rd_intensity": 0.05,
         "margin_expansion": 0.02,
         "accruals_ratio": 0.01,
         "rev_cagr_stability": 0.15,
@@ -86,7 +82,7 @@ def sample_ohlcv():
     np.random.seed(42)
     returns = np.random.normal(0.0005, 0.015, 252)
     close = 100 * (1 + returns).cumprod()
-    
+
     df = pd.DataFrame({
         "Open": close * (1 + np.random.normal(0, 0.002, 252)),
         "High": close * (1 + np.abs(np.random.normal(0, 0.01, 252))),
@@ -94,9 +90,9 @@ def sample_ohlcv():
         "Close": close,
         "Volume": np.random.lognormal(15, 0.5, 252).astype(int),
     }, index=dates)
-    
+
     # Ensure High >= Close >= Low
     df["High"] = df[["High", "Close"]].max(axis=1)
     df["Low"] = df[["Low", "Close"]].min(axis=1)
-    
+
     return df

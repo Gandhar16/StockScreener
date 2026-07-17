@@ -4,7 +4,7 @@ def _plot_levels(where, levels, only_good=False):
         if isinstance(l, float):
             where.axhline(y=l, color='black', linestyle='-')
         elif isinstance(l, dict):
-            if 'score' in l.keys():
+            if 'score' in l:
                 if only_good and l['score'] < 0:
                     continue
                 color = 'red' if l['score'] < 0 else 'blue'

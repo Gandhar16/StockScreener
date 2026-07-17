@@ -16,9 +16,12 @@ Commands:
     python long_term_portfolio.py --capital 150000
 """
 
-import os, sys, json, math, argparse
+import argparse
+import json
+import math
+import os
+import sys
 from datetime import datetime
-from typing import Dict, Any, List, Optional
 
 # Force UTF-8 output on Windows so currency symbols don't crash
 if hasattr(sys.stdout, "reconfigure"):
@@ -27,12 +30,11 @@ if hasattr(sys.stdout, "reconfigure"):
 import yfinance as yf
 
 from generate_calls import (
-    get_yf_fundamentals,
-    fair_value_estimate,
-    currency_sym,
-    fmt,
     DEFAULT_US,
     MIN_FUND_SCORE,
+    currency_sym,
+    fair_value_estimate,
+    get_yf_fundamentals,
     load_or_refresh_fundamentals,
 )
 
@@ -55,7 +57,7 @@ MAX_POSITIONS       = 12          # maximum simultaneous positions
 
 # ── portfolio file helpers ────────────────────────────────────────────────────
 
-def _empty_portfolio(total_capital: float) -> Dict:
+def _empty_portfolio(total_capital: float) -> dict:
     return {
         "meta": {
             "total_capital": total_capital,
@@ -67,14 +69,14 @@ def _empty_portfolio(total_capital: float) -> Dict:
     }
 
 
-def load_portfolio() -> Dict:
+def load_portfolio() -> dict:
     if os.path.exists(PORTFOLIO_PATH):
-        with open(PORTFOLIO_PATH, "r", encoding="utf-8") as f:
+        with open(PORTFOLIO_PATH, encoding="utf-8") as f:
             return json.load(f)
     return _empty_portfolio(100_000.0)
 
 
-def save_portfolio(port: Dict) -> None:
+def save_portfolio(port: dict) -> None:
     os.makedirs("reports", exist_ok=True)
     with open(PORTFOLIO_PATH, "w", encoding="utf-8") as f:
         json.dump(port, f, indent=2, default=str)
@@ -82,7 +84,7 @@ def save_portfolio(port: Dict) -> None:
 
 # ── live price helper ─────────────────────────────────────────────────────────
 
-def get_live_price(ticker: str) -> Optional[float]:
+def get_live_price(ticker: str) -> float | None:
     """Fetch current price via yfinance."""
     try:
         info = yf.Ticker(ticker).info or {}
@@ -100,17 +102,17 @@ def get_live_price(ticker: str) -> Optional[float]:
 
 # ── screening helpers ─────────────────────────────────────────────────────────
 
-def _apply_rescreen_rules(ticker: str, holding: Dict,
-                           fund_row: Optional[Dict],
-                           yf_d: Dict,
-                           price: float) -> Dict:
+def _apply_rescreen_rules(ticker: str, holding: dict,
+                           fund_row: dict | None,
+                           yf_d: dict,
+                           price: float) -> dict:
     """
     Apply exit/trim/watch/hold rules from the fund_row and live price.
     Returns an updated copy of the holding dict.
     """
     h = dict(holding)
     prev_score = h.get("fund_score")
-    flags: List[str] = []
+    flags: list[str] = []
     status = "HOLD"
 
     if fund_row is None:
@@ -182,7 +184,7 @@ def _apply_rescreen_rules(ticker: str, holding: Dict,
 
 # ── --scan ────────────────────────────────────────────────────────────────────
 
-def _build_candidates(force_refresh: bool = False) -> List[Dict]:
+def _build_candidates(force_refresh: bool = False) -> list[dict]:
     """Return sorted list of LT candidates (score >= MIN_FUND_SCORE) with live prices."""
     fund_data = load_or_refresh_fundamentals(DEFAULT_US, force=force_refresh)
     candidates = []
@@ -215,24 +217,18 @@ def _build_candidates(force_refresh: bool = False) -> List[Dict]:
 
 
 def cmd_scan(args):
-    print("\nLONG-TERM CANDIDATE SCAN")
-    print("  Loading fundamentals for DEFAULT_US universe ...")
     candidates = _build_candidates(getattr(args, "force_refresh", False))
 
-    W = 82
-    print(f"\n  {'LONG-TERM CANDIDATES':{'='}^{W}}")
-    print(f"  {'Rank':<5} {'Ticker':<8} {'Score':>6} {'Price':>10} {'Fair Val':>10} {'Upside':>8} {'PE':>6}  Status")
-    print("  " + "-" * W)
 
     port     = load_portfolio()
     holdings = port.get("holdings", {})
 
-    for i, c in enumerate(candidates, 1):
+    for _i, c in enumerate(candidates, 1):
         sym      = currency_sym(c["currency"])
-        price_s  = f"{sym}{c['price']:,.2f}"
-        fv_s     = f"{sym}{c['fair_val']:,.2f}" if c["fair_val"] else "   —"
-        up_s     = f"{c['upside']*100:+.1f}%" if c["upside"] is not None else "   —"
-        pe_s     = f"{c['pe']:.0f}x" if c["pe"] else "  —"
+        f"{sym}{c['price']:,.2f}"
+        f"{sym}{c['fair_val']:,.2f}" if c["fair_val"] else "   —"
+        f"{c['upside']*100:+.1f}%" if c["upside"] is not None else "   —"
+        f"{c['pe']:.0f}x" if c["pe"] else "  —"
 
         in_port   = c["ticker"] in holdings
         tranches  = len(holdings.get(c["ticker"], {}).get("tranches", []))
@@ -248,9 +244,7 @@ def cmd_scan(args):
         if acc is not None and not (isinstance(acc, float) and math.isnan(acc)) and acc > 0.10:
             status_hint += "  ⚠ accruals"
 
-        print(f"  {i:<5} {c['ticker']:<8} {c['score']:>6} {price_s:>10} {fv_s:>10} {up_s:>8} {pe_s:>6}  {status_hint}")
 
-    print(f"\n  {len(candidates)} candidates found (score >= {MIN_FUND_SCORE})\n")
     return candidates
 
 
@@ -276,31 +270,22 @@ def cmd_add(args):
         tranche = n_existing + 1
 
     if tranche > MAX_TRANCHES:
-        print(f"  ERROR: Max {MAX_TRANCHES} tranches allowed per position.")
         return
 
     if tranche <= n_existing:
-        print(f"  ERROR: Tranche {tranche} already exists for {ticker}. "
-              f"Current tranches: {n_existing}")
         return
 
     if tranche != n_existing + 1:
-        print(f"  ERROR: Must add tranches in order. "
-              f"Next expected tranche: {n_existing + 1}")
         return
 
     # Fetch live price
-    print(f"\n  Fetching live data for {ticker} ...")
     yf_d  = get_yf_fundamentals(ticker)
     price = yf_d.get("current_price") or 0
     if price <= 0:
-        print(f"  ERROR: Could not fetch price for {ticker}")
         return
 
     # Check cash
     if meta["cash"] < tranche_capital:
-        print(f"  ERROR: Insufficient cash. Have ${meta['cash']:,.2f}, "
-              f"need ${tranche_capital:,.2f}")
         return
 
     # Build tranche record
@@ -362,15 +347,7 @@ def cmd_add(args):
     port["holdings"] = holdings
     save_portfolio(port)
 
-    sym = currency_sym(yf_d.get("currency", "USD"))
-    print(f"\n  ADDED:  {ticker}  Tranche {tranche}")
-    print(f"  Price   : {sym}{price:,.2f}")
-    print(f"  Shares  : {shares:,.4f}")
-    print(f"  Invested: {sym}{invested:,.2f}")
-    print(f"  Cash remaining: ${meta['cash']:,.2f}")
-    print(f"  Fund score: {score:.1f}  |  Fair value: {sym}{fair_val:,.2f}" if fair_val
-          else f"  Fund score: {score:.1f}")
-    print()
+    currency_sym(yf_d.get("currency", "USD"))
 
 
 # ── --rescreen ────────────────────────────────────────────────────────────────
@@ -381,15 +358,11 @@ def cmd_rescreen(args):
     holdings = port["holdings"]
 
     if not holdings:
-        print("\n  Portfolio is empty. Nothing to rescreen.")
         return
 
     force = getattr(args, "force_refresh", False)
     tickers = list(holdings.keys())
 
-    print(f"\nQUARTERLY RESCREEN  ({datetime.now().strftime(DATE_FMT)})")
-    print(f"  Fetching fresh fundamentals for {len(tickers)} holdings "
-          f"({'forced' if force else 'cache OK'}) ...")
 
     fund_data = load_or_refresh_fundamentals(tickers, force=force)
 
@@ -408,18 +381,14 @@ def cmd_rescreen(args):
         new_score  = updated.get("fund_score")
         new_status = updated.get("thesis_status", "HOLD")
 
-        score_str  = (f"{prev_score:.1f} → {new_score:.1f}"
-                      if prev_score is not None else f"— → {new_score:.1f}")
-        change_tag = ""
         if new_status != prev_status:
-            change_tag = f"  *** STATUS CHANGE: {prev_status} → {new_status} ***"
+            pass
         elif new_score is not None and prev_score is not None:
             delta = new_score - prev_score
             if abs(delta) >= 3:
-                change_tag = f"  (score {'+' if delta >= 0 else ''}{delta:.1f})"
+                pass
 
-        flags_str = "  [" + ", ".join(updated.get("flags", [])) + "]" if updated.get("flags") else ""
-        print(f"  {ticker:<6}  score {score_str:<12}  {new_status:<6}{change_tag}{flags_str}")
+        "  [" + ", ".join(updated.get("flags", [])) + "]" if updated.get("flags") else ""
 
         if new_status in ("EXIT", "TRIM"):
             changes.append((ticker, new_status, updated.get("flags", [])))
@@ -430,17 +399,12 @@ def cmd_rescreen(args):
     save_portfolio(port)
 
     if changes:
-        print(f"\n  ACTION REQUIRED:")
-        for ticker, status, flags in changes:
-            print(f"    {ticker}  →  {status}  |  {'; '.join(flags)}")
-            if status == "EXIT":
-                print(f"      Run: python long_term_portfolio.py --exit {ticker}")
-            elif status == "TRIM":
-                print(f"      Consider selling ~50% of {ticker} position")
+        for ticker, status, _flags in changes:
+            if status == "EXIT" or status == "TRIM":
+                pass
     else:
-        print("\n  No action required. Portfolio thesis intact.")
+        pass
 
-    print()
 
 
 # ── --status ──────────────────────────────────────────────────────────────────
@@ -451,20 +415,14 @@ def cmd_status(args):
     holdings = port["holdings"]
 
     today    = datetime.now().strftime(DATE_FMT)
-    total_cap = meta["total_capital"]
-    cash      = meta["cash"]
+    meta["total_capital"]
+    meta["cash"]
 
     if not holdings:
-        print(f"\nLONG-TERM PORTFOLIO  (as of {today})")
-        print(f"  Portfolio is empty.")
-        print(f"  Cash: ${cash:,.2f}")
-        print(f"\n  Run: python long_term_portfolio.py --scan  to find candidates")
-        print()
         save_portfolio(port)
         return
 
     # Fetch live prices
-    print(f"\n  Fetching live prices for {len(holdings)} holdings ...")
 
     rows    = []
     total_invested    = 0.0
@@ -519,34 +477,18 @@ def cmd_status(args):
 
     total_gain_pct = (total_port_value - total_invested) / total_invested if total_invested > 0 else 0
 
-    W = 110
-    print(f"\n  {'LONG-TERM PORTFOLIO':{'='}^{W}}")
-    print(f"  (as of {today})")
-    print()
-    hdr = (f"  {'Ticker':<7}  {'Tranches':<9}  {'Avg Cost':>9}  {'Current':>9}  "
-           f"{'Gain%':>7}  {'Fair Val':>9}  {'To FV':>7}  {'Score':>6}  {'Status':<6}  Action")
-    print(hdr)
-    print("  " + "-" * (W - 2))
 
     for r in rows:
         sym      = r["sym"]
-        ac_s     = f"{sym}{r['avg_cost']:,.2f}"
-        pr_s     = f"{sym}{r['price']:,.2f}"
-        gp_s     = f"{r['gain_pct']*100:+.1f}%"
-        fv_s     = f"{sym}{r['fair_val']:,.2f}" if r["fair_val"] else "   —"
-        to_fv_s  = f"{r['to_fv']*100:+.1f}%" if r["to_fv"] is not None else "   —"
-        sc_s     = f"{r['score']:.1f}"
+        f"{sym}{r['avg_cost']:,.2f}"
+        f"{sym}{r['price']:,.2f}"
+        f"{r['gain_pct']*100:+.1f}%"
+        f"{sym}{r['fair_val']:,.2f}" if r["fair_val"] else "   —"
+        f"{r['to_fv']*100:+.1f}%" if r["to_fv"] is not None else "   —"
+        f"{r['score']:.1f}"
 
-        print(f"  {r['ticker']:<7}  {r['tranches']:<9}  {ac_s:>9}  {pr_s:>9}  "
-              f"{gp_s:>7}  {fv_s:>9}  {to_fv_s:>7}  {sc_s:>6}  {r['status']:<6}  [{r['action']}]")
 
-    print("  " + "-" * (W - 2))
-    port_gain_s = f"{total_gain_pct*100:+.2f}%"
-    print(f"\n  Cash remaining  : ${cash:,.2f}")
-    print(f"  Total invested  : ${total_invested:,.2f}")
-    print(f"  Portfolio value : ${total_port_value:,.2f}  ({port_gain_s})")
-    print(f"  Total capital   : ${total_cap:,.2f}")
-    print()
+    f"{total_gain_pct*100:+.2f}%"
 
     # ── write JSON for dashboard ───────────────────────────────────────────────
     # Build enriched holdings for dashboard
@@ -582,8 +524,6 @@ def cmd_status(args):
         f.write(payload)
     with open("dashboard/lt_portfolio.json", "w", encoding="utf-8") as f:
         f.write(payload)
-    print(f"  Dashboard data written to {PORTFOLIO_PATH} and dashboard/lt_portfolio.json")
-    print()
 
 
 # ── --exit ────────────────────────────────────────────────────────────────────
@@ -595,12 +535,11 @@ def cmd_exit(args):
     holdings = port["holdings"]
 
     if ticker not in holdings:
-        print(f"  {ticker} is not in portfolio.")
         return
 
     h     = holdings[ticker]
     price = get_live_price(ticker) or h["avg_cost"]
-    sym   = currency_sym(h.get("currency", "USD"))
+    currency_sym(h.get("currency", "USD"))
 
     total_shares  = h.get("total_shares", 0)
     total_invested = h.get("total_invested", 0)
@@ -608,7 +547,7 @@ def cmd_exit(args):
     gain_pct      = (curr_val - total_invested) / total_invested if total_invested > 0 else 0
 
     # Record in exit history
-    exit_rec = {
+    {
         "exit_date":       datetime.now().strftime(DATE_FMT),
         "exit_price":      round(price, 2),
         "shares_sold":     total_shares,
@@ -631,21 +570,13 @@ def cmd_exit(args):
     port["holdings"] = holdings
     save_portfolio(port)
 
-    print(f"\n  EXITED:  {ticker}")
-    print(f"  Shares sold    : {total_shares:,.4f}")
-    print(f"  Exit price     : {sym}{price:,.2f}")
-    print(f"  Proceeds       : {sym}{curr_val:,.2f}")
-    print(f"  Invested       : {sym}{total_invested:,.2f}")
-    gain_s = f"{gain_pct*100:+.2f}%"
-    gl_s   = f"{curr_val - total_invested:+,.2f}"
-    print(f"  Gain / Loss    : {sym}{gl_s}  ({gain_s})")
-    print(f"  Cash remaining : ${meta['cash']:,.2f}")
-    print()
+    f"{gain_pct*100:+.2f}%"
+    f"{curr_val - total_invested:+,.2f}"
 
 
 # ── programmatic helpers (called by pipeline) ─────────────────────────────────
 
-def add_ticker(ticker: str, tranche: int = None, force_refresh: bool = False) -> bool:
+def add_ticker(ticker: str, tranche: int | None = None, force_refresh: bool = False) -> bool:
     """Programmatic version of --add. Returns True on success."""
     import types
     args = types.SimpleNamespace(add=ticker, tranche=tranche, force_refresh=force_refresh)
@@ -667,7 +598,7 @@ def exit_ticker(ticker: str, reason: str = "AUTO_EXIT") -> bool:
         return False
 
 
-def auto_manage(force_refresh: bool = False) -> Dict:
+def auto_manage(force_refresh: bool = False) -> dict:
     """
     Fully automated portfolio management — called by the pipeline.
 
@@ -682,7 +613,6 @@ def auto_manage(force_refresh: bool = False) -> Dict:
 
     # ── 1. Scan ───────────────────────────────────────────────────────────────
     candidates = _build_candidates(force_refresh)
-    print(f"\n  Found {len(candidates)} candidates (score >= {MIN_FUND_SCORE})")
 
     # ── 2. Auto-add ───────────────────────────────────────────────────────────
     port     = load_portfolio()
@@ -691,14 +621,12 @@ def auto_manage(force_refresh: bool = False) -> Dict:
 
     added = []
     if open_slots > 0:
-        print(f"\n  AUTO-ADD: {open_slots} open slot(s) — filling with top candidates ...")
         for c in candidates:
             if open_slots <= 0:
                 break
             t = c["ticker"]
             if t in holdings:
                 continue   # already held
-            print(f"    Adding {t} (score={c['score']}) ...")
             ok = add_ticker(t, tranche=1, force_refresh=force_refresh)
             if ok:
                 added.append(t)
@@ -707,12 +635,11 @@ def auto_manage(force_refresh: bool = False) -> Dict:
                 port     = load_portfolio()
                 holdings = port.get("holdings", {})
     else:
-        print(f"\n  Portfolio full ({MAX_POSITIONS} positions). Skipping auto-add.")
+        pass
 
     # ── 3. Rescreen + auto-exit ───────────────────────────────────────────────
     port = load_portfolio()
     if port.get("holdings"):
-        print()
         rescreen_args = types.SimpleNamespace(force_refresh=force_refresh)
         cmd_rescreen(rescreen_args)
 
@@ -721,14 +648,12 @@ def auto_manage(force_refresh: bool = False) -> Dict:
         exited   = []
         for t, h in list(port.get("holdings", {}).items()):
             if h.get("thesis_status") == "EXIT":
-                print(f"  AUTO-EXIT: {t} (fundamental thesis broken) ...")
                 exit_ticker(t, reason="FUND_DETERIORATION")
                 exited.append(t)
     else:
         exited = []
 
     # ── 4. Write dashboard JSON ───────────────────────────────────────────────
-    print()
     status_args = types.SimpleNamespace(force_refresh=force_refresh)
     cmd_status(status_args)
 
@@ -740,7 +665,7 @@ def auto_manage(force_refresh: bool = False) -> Dict:
 def cmd_capital(args):
     new_cap = float(args.capital)
     port    = load_portfolio()
-    old_cap = port["meta"]["total_capital"]
+    port["meta"]["total_capital"]
 
     # Adjust cash proportionally only if portfolio is new (no holdings)
     if not port["holdings"]:
@@ -748,10 +673,8 @@ def cmd_capital(args):
 
     port["meta"]["total_capital"] = new_cap
     save_portfolio(port)
-    print(f"\n  Total capital updated: ${old_cap:,.2f} → ${new_cap:,.2f}")
     if not port["holdings"]:
-        print(f"  Cash set to ${new_cap:,.2f} (no holdings)")
-    print()
+        pass
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 """Tests for configuration loading."""
 
 import pytest
-from stock_scanner.config import load_config_from_file, ScannerConfig
+
+from stock_scanner.config import ScannerConfig, load_config_from_file
 
 
 def test_load_default_config():
@@ -33,9 +34,9 @@ weights:
 """
     config_file = tmp_path / "test_config.yaml"
     config_file.write_text(yaml_content)
-    
+
     config = load_config_from_file(str(config_file))
-    
+
     assert config.mode == "single_stock"
     assert config.tickers == ["AAPL", "MSFT"]
     assert config.filters.min_market_cap == 1_000_000_000

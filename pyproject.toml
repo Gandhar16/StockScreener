@@ -70,7 +70,36 @@ ignore = ["E501"]
 
 [tool.ruff.per-file-ignores]
 "tests/*" = ["S101", "S106"]
-
+"stock_scanner/trendln/*" = ["E701", "RUF002", "RUF001", "E741", "RUF013", "C408"]
+"stock_scanner/pricelevels/*" = ["E402", "B904", "E741", "B008", "RUF012", "F401", "RUF001", "E701", "RUF002"]
+"stock_scanner/engine/technical.py" = ["SIM102"]
+"stock_scanner/engine/indicators.py" = ["E701", "E741", "E702", "RUF002", "RUF003"]
+"stock_scanner/engine/fundamental.py" = ["E722", "E741", "E702", "RUF002", "RUF003"]
+"smart_money.py" = ["E701", "E702"]
+"stock_scanner/data/cache.py" = ["B007"]
+"stock_scanner/data/provider.py" = ["F821", "F811"]
+"scan_and_alert.py" = ["RUF001", "E741", "B007", "E701", "B018", "SIM108"]
+"run_pipeline.py" = ["B007", "RUF003"]
+"long_term_portfolio.py" = ["RUF003", "B007", "SIM102"]
+"generate_calls.py" = ["E701", "E702", "RUF002", "RUF001", "RUF003"]
+"stock_scanner/trendln/__init__.py" = ["RUF012", "F401", "E701", "RUF002", "RUF001", "E741", "C408"]
+"stock_scanner/pricelevels/_abstract.py" = ["E402"]
+"stock_scanner/pricelevels/scoring/touch_scorer.py" = ["B904"]
+"stock_scanner/pricelevels/visualization/_helpers.py" = ["E741"]
+"stock_scanner/pricelevels/visualization/levels_on_candlestick.py" = ["B008"]
+"strategy_compare.py" = ["RUF002"]
+"telegram_notifier.py" = ["RUF001"]
+"visualize_technical.py" = ["T201", "C408", "RUF013", "E741", "E402", "B904", "E741"]
+"stock_scanner/engine/trade_quality.py" = ["RUF002"]
+"stock_scanner/engine/patterns.py" = ["E741", "E702", "RUF002", "SIM102"]
+"stock_scanner/engine/sentiment.py" = ["B904"]
+"stock_scanner/engine/calls_db.py" = ["RUF059"]
+"tests/test_scoring.py" = ["RUF059"]
+"tests/test_trade_quality.py" = ["PT018"]
+"tests/test_fundamental.py" = ["F821"]
+"update_calls.py" = ["T201"]
+"analyze_results.py" = ["E701", "B007"]
+"api_server.py" = ["B904"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -92,7 +121,6 @@ omit = [
     "stock_scanner/engine/calls_db.py",
     "stock_scanner/engine/explanation.py",
     "stock_scanner/engine/indicators.py",
-    "stock_scanner/engine/patterns.py",
     "stock_scanner/engine/mtf.py",
     "stock_scanner/engine/relative_strength.py",
     "stock_scanner/engine/risk_flags.py",

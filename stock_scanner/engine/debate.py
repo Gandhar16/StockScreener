@@ -10,9 +10,9 @@ Different financial agents debate scores, valuations, and patterns:
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,9 @@ class DebateResult:
     ticker: str
     original_score: float
     adjusted_score: float
-    arguments: List[Argument]
+    arguments: list[Argument]
     consensus: str  # "bullish", "bearish", "neutral"
-    key_points: List[str]
+    key_points: list[str]
 
 
 class BaseAgent:
@@ -51,12 +51,12 @@ class BaseAgent:
     def __init__(self, persona: AgentPersona):
         self.persona = persona
         self.name = persona.value.title()
-    
-    def analyze(self, metrics: Dict[str, Any], technical: Dict[str, Any], scores: Dict[str, float]) -> List[Argument]:
+
+    def analyze(self, metrics: dict[str, Any], technical: dict[str, Any], scores: dict[str, float]) -> list[Argument]:
         """Analyze and produce arguments - override in subclasses"""
         raise NotImplementedError
-    
-    def _get_metric(self, metrics: Dict[str, Any], key: str, default=None):
+
+    def _get_metric(self, metrics: dict[str, Any], key: str, default=None):
         """Safely get metric value"""
         val = metrics.get(key, default)
         try:
@@ -75,16 +75,16 @@ class ValueInvestorAgent(BaseAgent):
     """
     def __init__(self):
         super().__init__(AgentPersona.VALUE)
-    
-    def analyze(self, metrics: Dict, technical: Dict, scores: Dict) -> List[Argument]:
+
+    def analyze(self, metrics: dict, technical: dict, scores: dict) -> list[Argument]:
         args = []
-        
+
         pe = self._get_metric(metrics, "pe_ratio")
-        pb = self._get_metric(metrics, "price_to_book")
+        self._get_metric(metrics, "price_to_book")
         de = self._get_metric(metrics, "debt_to_equity")
         cr = self._get_metric(metrics, "current_ratio")
         eps_growth = self._get_metric(metrics, "eps_growth_3y")
-        
+
         # Valuation argument
         if pe and pe < 15:
             args.append(Argument(
@@ -102,7 +102,7 @@ class ValueInvestorAgent(BaseAgent):
                 confidence=0.85,
                 category="valuation"
             ))
-        
+
         # Balance sheet argument
         if cr and cr > 2.0:
             args.append(Argument(
@@ -120,7 +120,7 @@ class ValueInvestorAgent(BaseAgent):
                 confidence=0.9,
                 category="risk"
             ))
-        
+
         # Leverage argument
         if de is not None and de < 0.5:
             args.append(Argument(
@@ -138,7 +138,7 @@ class ValueInvestorAgent(BaseAgent):
                 confidence=0.9,
                 category="risk"
             ))
-        
+
         # Earnings consistency
         if eps_growth and eps_growth > 0:
             args.append(Argument(
@@ -148,7 +148,7 @@ class ValueInvestorAgent(BaseAgent):
                 confidence=0.7,
                 category="quality"
             ))
-        
+
         return args
 
 
@@ -162,15 +162,15 @@ class GrowthInvestorAgent(BaseAgent):
     """
     def __init__(self):
         super().__init__(AgentPersona.GROWTH)
-    
-    def analyze(self, metrics: Dict, technical: Dict, scores: Dict) -> List[Argument]:
+
+    def analyze(self, metrics: dict, technical: dict, scores: dict) -> list[Argument]:
         args = []
-        
+
         rev_growth = self._get_metric(metrics, "revenue_growth_3y")
         rd_intensity = self._get_metric(metrics, "rd_intensity")
         op_margin = self._get_metric(metrics, "operating_margin")
         peg = self._get_metric(metrics, "peg_ratio")
-        
+
         # Revenue growth
         if rev_growth and rev_growth > 0.15:
             args.append(Argument(
@@ -188,7 +188,7 @@ class GrowthInvestorAgent(BaseAgent):
                 confidence=0.8,
                 category="growth"
             ))
-        
+
         # R&D investment
         if rd_intensity and rd_intensity > 0.05:
             args.append(Argument(
@@ -198,7 +198,7 @@ class GrowthInvestorAgent(BaseAgent):
                 confidence=0.75,
                 category="growth"
             ))
-        
+
         # Margin expansion
         if op_margin and op_margin > 0.20:
             args.append(Argument(
@@ -208,7 +208,7 @@ class GrowthInvestorAgent(BaseAgent):
                 confidence=0.8,
                 category="quality"
             ))
-        
+
         # PEG ratio
         if peg and peg < 1.0:
             args.append(Argument(
@@ -226,7 +226,7 @@ class GrowthInvestorAgent(BaseAgent):
                 confidence=0.75,
                 category="valuation"
             ))
-        
+
         return args
 
 
@@ -240,15 +240,15 @@ class QualityInvestorAgent(BaseAgent):
     """
     def __init__(self):
         super().__init__(AgentPersona.QUALITY)
-    
-    def analyze(self, metrics: Dict, technical: Dict, scores: Dict) -> List[Argument]:
+
+    def analyze(self, metrics: dict, technical: dict, scores: dict) -> list[Argument]:
         args = []
-        
+
         roic = self._get_metric(metrics, "roic_3y") or self._get_metric(metrics, "roic_3y")
         fcf_ni = self._get_metric(metrics, "fcf_to_net_income")
         roe = None  # roe not in fundamental output
         shares_growth = self._get_metric(metrics, "shares_growth_3y")
-        
+
         # ROIC
         if roic and roic > 0.15:
             args.append(Argument(
@@ -266,7 +266,7 @@ class QualityInvestorAgent(BaseAgent):
                 confidence=0.85,
                 category="quality"
             ))
-        
+
         # FCF conversion
         if fcf_ni and fcf_ni > 1.0:
             args.append(Argument(
@@ -284,7 +284,7 @@ class QualityInvestorAgent(BaseAgent):
                 confidence=0.8,
                 category="risk"
             ))
-        
+
         # ROE
         if roe and roe > 0.15:
             args.append(Argument(
@@ -294,7 +294,7 @@ class QualityInvestorAgent(BaseAgent):
                 confidence=0.8,
                 category="quality"
             ))
-        
+
         # Capital allocation - share count
         if shares_growth is not None and shares_growth < -0.02:
             args.append(Argument(
@@ -312,7 +312,7 @@ class QualityInvestorAgent(BaseAgent):
                 confidence=0.8,
                 category="risk"
             ))
-        
+
         return args
 
 
@@ -326,19 +326,19 @@ class TechnicalAnalystAgent(BaseAgent):
     """
     def __init__(self):
         super().__init__(AgentPersona.TECHNICAL)
-    
-    def analyze(self, metrics: Dict, technical: Dict, scores: Dict) -> List[Argument]:
+
+    def analyze(self, metrics: dict, technical: dict, scores: dict) -> list[Argument]:
         args = []
-        
+
         if not technical:
             return args
-        
+
         context = technical.get("context", "Unknown")
         support_zones = technical.get("support_zones", [])
         resistance_zones = technical.get("resistance_zones", [])
         long_term_support = technical.get("long_term_support_trendlines", [])
         long_term_resistance = technical.get("long_term_resistance_trendlines", [])
-        
+
         # Market context
         if "Bull" in context:
             args.append(Argument(
@@ -356,7 +356,7 @@ class TechnicalAnalystAgent(BaseAgent):
                 confidence=0.85,
                 category="technical"
             ))
-        
+
         # Support zones
         if support_zones:
             nearest = support_zones[0]
@@ -369,7 +369,7 @@ class TechnicalAnalystAgent(BaseAgent):
                 confidence=0.75,
                 category="technical"
             ))
-        
+
         # Resistance zones
         if resistance_zones:
             nearest = resistance_zones[0]
@@ -382,28 +382,28 @@ class TechnicalAnalystAgent(BaseAgent):
                 confidence=0.75,
                 category="technical"
             ))
-        
+
         # Long-term trendlines
         if long_term_support:
             tl = long_term_support[0]
             args.append(Argument(
                 agent=self.persona,
-                claim=f"Long-term support trendline intact",
+                claim="Long-term support trendline intact",
                 evidence=f"Slope: {tl.get('slope', 0):.4f}, R^2: {tl.get('r_squared', 0):.2f}",
                 confidence=0.7,
                 category="technical"
             ))
-        
+
         if long_term_resistance:
             tl = long_term_resistance[0]
             args.append(Argument(
                 agent=self.persona,
-                claim=f"Long-term resistance trendline capping upside",
+                claim="Long-term resistance trendline capping upside",
                 evidence=f"Slope: {tl.get('slope', 0):.4f}, R^2: {tl.get('r_squared', 0):.2f}",
                 confidence=0.7,
                 category="technical"
             ))
-        
+
         return args
 
 
@@ -416,10 +416,10 @@ class RiskManagerAgent(BaseAgent):
     """
     def __init__(self):
         super().__init__(AgentPersona.RISK)
-    
-    def analyze(self, metrics: Dict, technical: Dict, scores: Dict) -> List[Argument]:
+
+    def analyze(self, metrics: dict, technical: dict, scores: dict) -> list[Argument]:
         args = []
-        
+
         # Red flags from metrics
         red_flags = metrics.get("red_flags", [])
         if red_flags:
@@ -431,7 +431,7 @@ class RiskManagerAgent(BaseAgent):
                     confidence=0.95,
                     category="risk"
                 ))
-        
+
         # Accruals
         accruals = self._get_metric(metrics, "accruals_ratio")
         if accruals and accruals > 0.10:
@@ -442,7 +442,7 @@ class RiskManagerAgent(BaseAgent):
                 confidence=0.85,
                 category="risk"
             ))
-        
+
         # Piotroski
         piotroski = self._get_metric(metrics, "piotroski_f")
         piotroski_max = self._get_metric(metrics, "piotroski_max", 9)
@@ -463,7 +463,7 @@ class RiskManagerAgent(BaseAgent):
                     confidence=0.8,
                     category="quality"
                 ))
-        
+
         # Revenue stability
         rev_stability = self._get_metric(metrics, "rev_cagr_stability")
         if rev_stability and rev_stability > 0.30:
@@ -474,7 +474,7 @@ class RiskManagerAgent(BaseAgent):
                 confidence=0.7,
                 category="risk"
             ))
-        
+
         # Technical risk
         if technical:
             context = technical.get("context", "")
@@ -486,7 +486,7 @@ class RiskManagerAgent(BaseAgent):
                     confidence=0.8,
                     category="risk"
                 ))
-        
+
         return args
 
 
@@ -494,7 +494,7 @@ class DebateEngine:
     """
     Orchestrates multi-agent debate on stock scores
     """
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: dict | None = None):
         self.config = config or {}
         self.agents = [
             ValueInvestorAgent(),
@@ -503,18 +503,18 @@ class DebateEngine:
             TechnicalAnalystAgent(),
             RiskManagerAgent(),
         ]
-        
+
         # Debate parameters
         self.max_rounds = self.config.get("max_rounds", 2)
         self.confidence_threshold = self.config.get("confidence_threshold", 0.7)
         self.score_adjustment_weight = self.config.get("score_adjustment_weight", 0.15)
-    
-    def run_debate(self, ticker: str, metrics: Dict, technical: Dict, scores: Dict) -> DebateResult:
+
+    def run_debate(self, ticker: str, metrics: dict, technical: dict, scores: dict) -> DebateResult:
         """Run debate for a single ticker"""
-        
+
         original_score = scores.get("total_score", 50.0)
         all_arguments = []
-        
+
         # Round 1: Initial arguments from all agents
         for agent in self.agents:
             try:
@@ -522,7 +522,7 @@ class DebateEngine:
                 all_arguments.extend(args)
             except Exception as e:
                 logger.warning(f"Agent {agent.persona.value} failed for {ticker}: {e}")
-        
+
         # Round 2: Rebuttals (agents respond to opposing views)
         # Simplified: just re-analyze with awareness of other arguments
         for agent in self.agents:
@@ -532,17 +532,17 @@ class DebateEngine:
                 pass
             except Exception as e:
                 logger.warning(f"Rebuttal failed for {agent.persona.value}: {e}")
-        
+
         # Calculate score adjustment based on arguments
         adjustment = self._calculate_adjustment(all_arguments, original_score)
         adjusted_score = max(0, min(100, original_score + adjustment))
-        
+
         # Determine consensus
         consensus = self._determine_consensus(all_arguments, adjusted_score)
-        
+
         # Extract key points
         key_points = self._extract_key_points(all_arguments)
-        
+
         return DebateResult(
             ticker=ticker,
             original_score=original_score,
@@ -551,22 +551,22 @@ class DebateEngine:
             consensus=consensus,
             key_points=key_points
         )
-    
-    def _calculate_adjustment(self, arguments: List[Argument], original_score: float) -> float:
+
+    def _calculate_adjustment(self, arguments: list[Argument], original_score: float) -> float:
         """Calculate score adjustment from debate arguments"""
         if not arguments:
             return 0.0
-        
+
         total_weight = 0.0
         weighted_adjustment = 0.0
-        
+
         for arg in arguments:
             if arg.confidence < self.confidence_threshold:
                 continue
-            
+
             # Weight by confidence
             weight = arg.confidence
-            
+
             # Direction based on category and claim sentiment
             direction = 0
             if arg.category == "valuation":
@@ -594,29 +594,29 @@ class DebateEngine:
                     direction = 1
                 elif "bear" in arg.claim.lower() or "resistance" in arg.claim.lower() or "deteriorating" in arg.claim.lower():
                     direction = -1
-            
+
             weighted_adjustment += direction * weight * 5.0  # Max 5 points per argument
             total_weight += weight
-        
+
         if total_weight == 0:
             return 0.0
-        
+
         # Normalize and cap
         adjustment = (weighted_adjustment / total_weight) * self.score_adjustment_weight * 20
         return max(-15, min(15, adjustment))
-    
-    def _determine_consensus(self, arguments: List[Argument], adjusted_score: float) -> str:
+
+    def _determine_consensus(self, arguments: list[Argument], adjusted_score: float) -> str:
         """Determine overall consensus from arguments"""
         if not arguments:
             return "neutral"
-        
+
         bullish = 0
         bearish = 0
-        
+
         for arg in arguments:
             if arg.confidence < self.confidence_threshold:
                 continue
-            
+
             # Count sentiment by agent
             if arg.agent in [AgentPersona.VALUE, AgentPersona.GROWTH, AgentPersona.QUALITY]:
                 if any(word in arg.claim.lower() for word in ["attractive", "strong", "excellent", "compounding", "growth", "margin of safety", "reasonable", "efficient"]):
@@ -633,15 +633,15 @@ class DebateEngine:
                     bearish += arg.confidence * 1.5  # Risk manager weighted more on downside
                 elif any(word in arg.claim.lower() for word in ["strong", "improving", "healthy", "low"]):
                     bullish += arg.confidence
-        
+
         if bullish > bearish * 1.2:
             return "bullish"
         elif bearish > bullish * 1.2:
             return "bearish"
         else:
             return "neutral"
-    
-    def _extract_key_points(self, arguments: List[Argument]) -> List[str]:
+
+    def _extract_key_points(self, arguments: list[Argument]) -> list[str]:
         """Extract top debate points for summary"""
         # Group by category and take highest confidence
         points = {}
@@ -650,21 +650,21 @@ class DebateEngine:
                 key = f"[{arg.category.upper()}] {arg.claim}"
                 if key not in points or arg.confidence > points[key][1]:
                     points[key] = (arg.evidence, arg.confidence)
-        
+
         # Sort by confidence and return top 5
         sorted_points = sorted(points.items(), key=lambda x: -x[1][1])
         return [f"{k}: {v[0]}" for k, v in sorted_points[:5]]
-    
-    def run_batch_debate(self, results_df) -> Dict[str, DebateResult]:
+
+    def run_batch_debate(self, results_df) -> dict[str, DebateResult]:
         """Run debate on all tickers in results DataFrame"""
         debate_results = {}
-        
+
         for _, row in results_df.iterrows():
             ticker = row["ticker"]
-            
+
             # Extract metrics dict
             metrics = {k: v for k, v in row.items() if not k.startswith("_")}
-            
+
             # Extract technical dict
             technical = {}
             for col in ["support_zones", "resistance_zones", "support_trendlines", "resistance_trendlines",
@@ -672,40 +672,40 @@ class DebateEngine:
                        "short_term_support_trendlines", "short_term_resistance_trendlines", "technical_context"]:
                 if col in row and row[col] is not None:
                     technical[col.replace("_", " ")] = row[col]
-            
+
             if "context" in row:
                 technical["context"] = row["context"]
-            
+
             # Extract scores dict
             scores = {}
             for col in ["total_score", "business_quality_score", "valuation_score", "financial_risk_score",
                        "growth_score", "capital_allocation_score"]:
                 if col in row:
                     scores[col] = row[col]
-            
+
             # Run debate
             result = self.run_debate(ticker, metrics, technical, scores)
             debate_results[ticker] = result
             logger.info(f"Debate complete for {ticker}: {result.original_score:.1f} -> {result.adjusted_score:.1f} ({result.consensus})")
-        
+
         return debate_results
 
 
 
-def run_debate_on_results(results_df, config=None) -> Dict[str, DebateResult]:
+def run_debate_on_results(results_df, config=None) -> dict[str, DebateResult]:
     """
     Run debate on all tickers in results DataFrame
     Returns dict of ticker -> DebateResult
     """
     engine = DebateEngine(config)
     debate_results = {}
-    
+
     for _, row in results_df.iterrows():
         ticker = row["ticker"]
-        
+
         # Extract metrics dict (from fundamental analysis)
         metrics = row.to_dict()
-        
+
         # Extract technical data
         technical = {}
         for col in ["support_zones", "resistance_zones", "support_trendlines", "resistance_trendlines",
@@ -713,45 +713,45 @@ def run_debate_on_results(results_df, config=None) -> Dict[str, DebateResult]:
                    "short_term_support_trendlines", "short_term_resistance_trendlines", "technical_context"]:
             if col in row and row[col] is not None:
                 technical[col.replace("_", " ")] = row[col]
-        
+
         if "context" in row:
             technical["context"] = row["context"]
-        
+
         # Extract scores dict
         scores = {}
         for col in ["total_score", "business_quality_score", "valuation_score", "financial_risk_score",
                    "growth_score", "capital_allocation_score"]:
             if col in row:
                 scores[col] = row[col]
-        
-        original_total = row.get("total_score", 50)
-        
+
+        row.get("total_score", 50)
+
         # Run debate
         result = engine.run_debate(ticker, metrics, technical, scores)
         debate_results[ticker] = result
         logger.info(f"Debate complete for {ticker}: {result.original_score:.1f} -> {result.adjusted_score:.1f} ({result.consensus})")
-    
+
     return debate_results
 
 
-def format_debate_output(debate_results: Dict[str, DebateResult]) -> str:
+def format_debate_output(debate_results: dict[str, DebateResult]) -> str:
     """Format debate results for display"""
     lines = []
     lines.append("=" * 80)
     lines.append("MULTI-AGENT FINANCIAL DEBATE RESULTS")
     lines.append("=" * 80)
-    
+
     for ticker, result in sorted(debate_results.items(), key=lambda x: -x[1].adjusted_score):
         lines.append("\n" + "-" * 80)
         lines.append(f"{ticker} | Original: {result.original_score:.1f} -> Adjusted: {result.adjusted_score:.1f} | Consensus: {result.consensus.upper()}")
         lines.append("-" * 80)
-        
+
         # Key points
         if result.key_points:
             lines.append("\nKEY DEBATE POINTS:")
             for i, point in enumerate(result.key_points, 1):
                 lines.append(f"  {i}. {point}")
-        
+
         # Arguments by agent
         lines.append("\nAGENT ARGUMENTS:")
         for agent in AgentPersona:
@@ -761,6 +761,6 @@ def format_debate_output(debate_results: Dict[str, DebateResult]) -> str:
                 for arg in agent_args:
                     lines.append(f"    * [{arg.category.upper()}] {arg.claim}")
                     lines.append(f"      Evidence: {arg.evidence} (confidence: {arg.confidence:.0%})")
-    
+
     return "\n".join(lines)
 

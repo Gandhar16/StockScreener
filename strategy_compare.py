@@ -6,21 +6,26 @@ Tests 10 different entry-filter strategies on the same 3-phase backtest.
 Fundamentals are cached after first run so strategy variations are fast (seconds).
 For each strategy the technical filter, stop type, and pattern allowlist vary.
 Results are printed as a comparison table. The best strategy by a combined
-win-rate × total-return score is saved to dashboard/data.json.
+win-rate x total-return score is saved to dashboard/data.json.
 
 Run:
     python strategy_compare.py
 """
 
-import os, json, pickle, logging
+import contextlib
+import json
+import logging
+import os
+import pickle
+
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 from stock_scanner.config import load_config_from_file
 from stock_scanner.engine.fundamental import FundamentalEngine
-from stock_scanner.engine.technical import MarketStructureEngine
 from stock_scanner.engine.patterns import PatternFinder
+from stock_scanner.engine.technical import MarketStructureEngine
 from visualize_technical import compute_entry_signals
 
 logging.basicConfig(level=logging.WARNING,
@@ -409,10 +414,8 @@ def run_strategy(strategy_name, cfg, phases, fund_cache, price_df):
             equity = 0.0
             for tkr, info in exit_map.items():
                 if day <= info["exit_date"]:
-                    try:
+                    with contextlib.suppress(Exception):
                         equity += info["shares"] * float(price_df["Close"][tkr].loc[day])
-                    except Exception:
-                        pass
             try:
                 bench_val = benchmark_shares * float(price_df["Close"]["^GSPC"].loc[day])
             except Exception:
@@ -483,12 +486,9 @@ def main():
 
     # ── Load or build fundamental cache ───────────────────────────────────────
     if os.path.exists(FUND_CACHE):
-        print("Loading cached fundamental scores ...")
         with open(FUND_CACHE, "rb") as f:
             fund_cache = pickle.load(f)
-        print(f"  Loaded {sum(len(v) for v in fund_cache.values())} candidates across {len(fund_cache)} phases.")
     else:
-        print("Running fundamental screens (this takes ~4 minutes, cached after) ...")
         config_path = "config/scanner_config.yaml"
         config = load_config_from_file(config_path)
         engine = FundamentalEngine(config)
@@ -503,30 +503,26 @@ def main():
             if scored.empty:
                 fund_cache[as_of] = []
                 continue
-            eligible = scored[scored.get("is_disqualified",
-                              pd.Series(False, index=scored.index)) == False]
+            eligible = scored[not scored.get("is_disqualified",
+                              pd.Series(False, index=scored.index))]
             top = eligible.head(TOP_N_FUNDAMENTAL)
             fund_cache[as_of] = [
                 {"ticker": row["ticker"], "fund_score": float(row["total_score"])}
                 for _, row in top.iterrows()
             ]
-            print(f"  Phase as_of={as_of}: {[r['ticker'] for r in fund_cache[as_of]]}")
 
         _log.getLogger().setLevel(_log.WARNING)
         with open(FUND_CACHE, "wb") as f:
             pickle.dump(fund_cache, f)
-        print("  Cached to", FUND_CACHE)
 
     # ── Download prices ───────────────────────────────────────────────────────
     earliest = min(p["start"] for p in PHASES)
     dl_start = str(pd.Timestamp(earliest) - pd.DateOffset(years=1))[:10]
-    print(f"\nDownloading price history ({dl_start} to 2026-12-31) ...")
-    symbols  = list(set(TICKERS + ["^GSPC"]))
+    symbols  = list({*TICKERS, "^GSPC"})
     price_df = yf.download(symbols, start=dl_start, end="2026-12-31",
                             auto_adjust=True, progress=False)
     if price_df.empty:
-        print("Price download failed."); return
-    print(f"  {len(price_df)} trading days downloaded.")
+        return
 
     # ── Run all strategies ────────────────────────────────────────────────────
     results = {}
@@ -534,46 +530,30 @@ def main():
     all_curves = {}
 
     for name, cfg in STRATEGIES.items():
-        print(f"\n  Testing {name} ...", end=" ", flush=True)
         logs, curve = run_strategy(name, cfg, PHASES, fund_cache, price_df)
         m = metrics(logs, curve)
         if m:
             results[name] = m
             all_logs[name]   = logs
             all_curves[name] = curve
-            print(f"trades={m['trades']}  win={m['win_rate']:.0%}  ret={m['total_ret']:+.1%}")
         else:
-            print("no trades")
+            pass
 
     # ── Print comparison table ────────────────────────────────────────────────
-    print("\n\n" + "=" * 110)
-    print(f"  {'Strategy':<22}  {'Desc':<46}  {'Trades':>6}  {'WinRate':>7}  {'Return':>7}  "
-          f"{'MaxDD':>6}  {'PF':>5}  {'AvgW':>6}  {'AvgL':>6}  {'Stops%':>6}")
-    print("=" * 110)
 
     sorted_strats = sorted(results.items(),
                            key=lambda kv: (kv[1]["win_rate"] * 0.5 +
                                            max(kv[1]["total_ret"], 0) * 0.5),
                            reverse=True)
     for name, m in sorted_strats:
-        desc = STRATEGIES[name]["desc"][:45]
-        pf_str = f"{m['pf']:.1f}x" if m["pf"] != float("inf") else " inf"
-        print(f"  {name:<22}  {desc:<46}  {m['trades']:>6}  {m['win_rate']:>6.0%}  "
-              f"{m['total_ret']:>+6.0%}  {m['max_dd']:>+6.0%}  {pf_str:>5}  "
-              f"{m['avg_win']:>+5.0%}  {m['avg_loss']:>+5.0%}  {m['stops_pct']:>5.0%}")
-    print("=" * 110)
+        STRATEGIES[name]["desc"][:45]
+        f"{m['pf']:.1f}x" if m["pf"] != float("inf") else " inf"
 
     # ── Pick winner: best combined score ──────────────────────────────────────
     best_name = sorted_strats[0][0]
     best_m    = sorted_strats[0][1]
     bench_ret = best_m["bench_ret"]
 
-    print(f"\n  BEST STRATEGY: {best_name}")
-    print(f"  {STRATEGIES[best_name]['desc']}")
-    print(f"  Win rate  : {best_m['win_rate']:.0%}")
-    print(f"  Return    : {best_m['total_ret']:+.1%}  (S&P: {bench_ret:+.1%}  outperform: {best_m['outperform']:+.1%})")
-    print(f"  Max DD    : {best_m['max_dd']:+.1%}")
-    print(f"  Trades    : {best_m['trades']}  (stops: {best_m['stops_pct']:.0%})")
 
     # ── Save best to dashboard ────────────────────────────────────────────────
     best_logs  = all_logs[best_name]
@@ -613,15 +593,12 @@ def main():
     }
     with open("dashboard/data.json", "w") as f:
         json.dump(output, f, indent=2)
-    print(f"\n  Saved best strategy to dashboard/data.json")
 
     with open("reports/strategy_comparison.json", "w") as f:
         comp = {n: {k: (round(v, 4) if isinstance(v, float) else v)
                     for k, v in m.items()}
                 for n, m in results.items()}
         json.dump(comp, f, indent=2)
-    print(f"  Full comparison saved to reports/strategy_comparison.json")
-    print("\n  Run: python run_dashboard.py  to view results")
 
 
 if __name__ == "__main__":

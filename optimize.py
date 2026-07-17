@@ -1,14 +1,14 @@
-import os
 import argparse
-import random
 import logging
-import pandas as pd
-from typing import List, Dict, Any, Tuple
+import os
+import random
 
-from stock_scanner.config import load_config_from_file, save_config_to_file, ScannerConfig
+import pandas as pd
+
+from stock_scanner.config import ScannerConfig, load_config_from_file, save_config_to_file
+from stock_scanner.engine.backtest import get_bulk_historical_returns
 from stock_scanner.engine.fundamental import FundamentalEngine
 from stock_scanner.engine.scoring import calculate_factor_scores
-from stock_scanner.engine.backtest import get_bulk_historical_returns
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -25,7 +25,7 @@ BOUNDS = {
     "operating_margin": ((0.02, 0.08), (0.15, 0.35))
 }
 
-def random_weights(n: int) -> List[float]:
+def random_weights(n: int) -> list[float]:
     """Generates n random weights that sum to 1.0."""
     w = [random.random() for _ in range(n)]
     s = sum(w)
@@ -34,7 +34,7 @@ def random_weights(n: int) -> List[float]:
 def sample_config_params() -> dict:
     """Samples a random configuration of weights and scoring ranges within the bounds."""
     params = {}
-    
+
     # 1. Weights
     cw = random_weights(3)
     params["category_weights"] = {
@@ -42,28 +42,28 @@ def sample_config_params() -> dict:
         "fisher_growth": cw[1],
         "buffett_quality": cw[2]
     }
-    
+
     gw = random_weights(3)
     params["graham_safety"] = {
         "current_ratio": gw[0],
         "debt_to_equity": gw[1],
         "pe_ratio": gw[2]
     }
-    
+
     fw = random_weights(3)
     params["fisher_growth"] = {
         "revenue_growth_yoy": fw[0],
         "eps_growth_yoy": fw[1],
         "rd_intensity": fw[2]
     }
-    
+
     bw = random_weights(3)
     params["buffett_quality"] = {
         "roic": bw[0],
         "operating_margin": bw[1],
         "fcf_to_net_income": bw[2]
     }
-    
+
     # 2. Ranges
     params["scoring_ranges"] = {}
     for key, (b_low, b_high) in BOUNDS.items():
@@ -72,7 +72,7 @@ def sample_config_params() -> dict:
         if low >= high:
             low, high = high, low
         params["scoring_ranges"][key] = [low, high]
-        
+
     return params
 
 def get_config_params_from_model(config: ScannerConfig) -> dict:
@@ -121,7 +121,7 @@ def main():
     parser.add_argument("--save", action="store_true", default=True, help="Save optimized parameters to config file")
     parser.add_argument("--no-save", action="store_false", dest="save", help="Do not save optimized parameters to config file")
     parser.add_argument("--benchmark", type=str, default="^GSPC", help="Benchmark ticker")
-    
+
     args = parser.parse_args()
 
     # Seed for determinism
@@ -133,7 +133,7 @@ def main():
         logger.error(f"Config file not found at {args.config}")
         return
     config = load_config_from_file(args.config)
-    
+
     # 2. Resolve tickers list
     tickers = []
     if args.tickers:
@@ -153,7 +153,7 @@ def main():
     logger.info("Initializing fundamental data fetching...")
     engine = FundamentalEngine(config)
     raw_data = engine.fetch_raw_data(tickers, as_of_year=as_of_year)
-    
+
     if not raw_data:
         logger.error("No fundamental data retrieved. Check internet connection and tickers.")
         return
@@ -161,7 +161,7 @@ def main():
     # Download bulk historical prices for return calculations
     logger.info("Fetching price history...")
     returns = get_bulk_historical_returns(tickers, start_ts, end_ts, args.benchmark)
-    
+
     # Evaluate return function
     def evaluate(config_params: dict) -> float:
         scores = []
@@ -171,16 +171,16 @@ def main():
             metrics = item["metrics"]
             penalty = item["red_flag_penalty"]
             is_disq = item["is_disqualified"]
-            
+
             if is_disq:
                 continue
-                
+
             cw = config_params["category_weights"]
             gw = config_params["graham_safety"]
-            fw = config_params["fisher_growth"]
-            bw = config_params["buffett_quality"]
+            config_params["fisher_growth"]
+            config_params["buffett_quality"]
             scoring_ranges = config_params["scoring_ranges"]
-            
+
             is_fin = "financial" in sector.lower() or "bank" in sector.lower() or gw.get("current_ratio", 1.0) == 0.0
             if is_fin:
                 relevant_metrics = ["roe", "equity_multiplier", "price_to_book", "dividend_yield", "operating_margin"]
@@ -190,7 +190,7 @@ def main():
                 relevant_metrics = list(scoring_ranges.keys())
                 irrelevant_metrics = []
                 pref_val_methods = ["price_to_earnings"]
-                
+
             candidate_sect_config = {
                 "relevant_metrics": relevant_metrics,
                 "irrelevant_metrics": irrelevant_metrics,
@@ -204,13 +204,13 @@ def main():
                 },
                 "scoring_ranges": scoring_ranges
             }
-            
+
             # Score
             ticker_scores, _ = calculate_factor_scores(metrics, candidate_sect_config)
-            
+
             for key in ticker_scores:
                 ticker_scores[key] = max(0.0, ticker_scores[key] - penalty)
-                
+
             w = candidate_sect_config["weights"]
             total_score = (
                 ticker_scores.get("business_quality", 50.0) * w.get("business_quality", 0.25) +
@@ -220,13 +220,13 @@ def main():
                 ticker_scores.get("capital_allocation", 50.0) * w.get("capital_allocation", 0.10)
             )
             scores.append((ticker, total_score))
-            
+
         if not scores:
             return 0.0
-            
+
         scores.sort(key=lambda x: x[1], reverse=True)
         top_selected = [x[0] for x in scores[:args.top_n]]
-        
+
         port_returns = [returns.get(t, 0.0) for t in top_selected if t in returns and not pd.isna(returns[t])]
         if not port_returns:
             return 0.0
@@ -236,7 +236,7 @@ def main():
     original_params = get_config_params_from_model(config)
     original_return = evaluate(original_params)
     benchmark_return = returns.get(args.benchmark, 0.0)
-    
+
     logger.info(f"Original Configuration Portfolio Return: {original_return:.2%}")
     logger.info(f"Benchmark ({args.benchmark}) Return: {benchmark_return:.2%}")
 
@@ -244,8 +244,8 @@ def main():
     logger.info(f"Starting Random Search phase with {args.iterations} iterations...")
     best_params = original_params
     best_return = original_return
-    
-    for i in range(args.iterations):
+
+    for _i in range(args.iterations):
         cand = sample_config_params()
         ret = evaluate(cand)
         if ret > best_return:
@@ -256,7 +256,7 @@ def main():
 
     # 6. Optimization Loop: Step 2 - Coordinate Descent Refinement
     logger.info(f"Starting Coordinate Descent Refinement with {args.refine_steps} steps...")
-    
+
     def perturb_weights(w_dict: dict, strength: float = 0.05) -> dict:
         keys = list(w_dict.keys())
         w_list = [w_dict[k] for k in keys]
@@ -265,7 +265,7 @@ def main():
         norm = [p / s for p in perturbed]
         return {k: norm[i] for i, k in enumerate(keys)}
 
-    for step in range(args.refine_steps):
+    for _step in range(args.refine_steps):
         cand = {
             "category_weights": best_params["category_weights"].copy(),
             "graham_safety": best_params["graham_safety"].copy(),
@@ -273,10 +273,10 @@ def main():
             "buffett_quality": best_params["buffett_quality"].copy(),
             "scoring_ranges": {k: v.copy() for k, v in best_params["scoring_ranges"].items()}
         }
-        
+
         # Randomly choose what type of change to make
         change_type = random.choice(["cat_weights", "sub_weights", "ranges"])
-        
+
         if change_type == "cat_weights":
             cand["category_weights"] = perturb_weights(cand["category_weights"])
         elif change_type == "sub_weights":
@@ -294,11 +294,11 @@ def main():
             else:
                 # Perturb upper bound
                 high = max(bounds[1][0], min(bounds[1][1], high + random.gauss(0, 0.5)))
-                
+
             if low >= high:
                 low, high = high, low
             cand["scoring_ranges"][range_key] = [low, high]
-            
+
         ret = evaluate(cand)
         if ret > best_return:
             best_return = ret
@@ -307,47 +307,35 @@ def main():
     logger.info(f"Refinement complete. Optimized Return: {best_return:.2%}")
 
     # 7. Print Outperformance Summary
-    original_out = original_return - benchmark_return
-    optimized_out = best_return - benchmark_return
-    improvement = best_return - original_return
-    
-    print("\n" + "="*50)
-    print("           PARAMETER OPTIMIZATION SUMMARY")
-    print("="*50)
-    print(f"Backtest Period: {args.start_date} to {end_ts.strftime('%Y-%m-%d')}")
-    print(f"Holding Period:  {args.holding_months} months")
-    print(f"Portfolio Size:  Top {args.top_n} stocks")
-    print(f"Benchmark:       {args.benchmark}")
-    print("-"*50)
-    print(f"Original Return: {original_return:7.2%} (Outperformance: {original_out:+7.2%})")
-    print(f"Optimized Return:{best_return:7.2%} (Outperformance: {optimized_out:+7.2%})")
-    print(f"Improvement:     {improvement:+7.2%}")
-    print("="*50 + "\n")
+    original_return - benchmark_return
+    best_return - benchmark_return
+    best_return - original_return
+
 
     # 8. Save updated config if requested
     if args.save:
-        logger.info(f"Updating scanner config models with optimized parameters...")
-        
+        logger.info("Updating scanner config models with optimized parameters...")
+
         # Category weights
         config.weights.category_weights.graham_safety = best_params["category_weights"]["graham_safety"]
         config.weights.category_weights.fisher_growth = best_params["category_weights"]["fisher_growth"]
         config.weights.category_weights.buffett_quality = best_params["category_weights"]["buffett_quality"]
-        
+
         # Graham weights
         config.weights.graham_safety.current_ratio = best_params["graham_safety"]["current_ratio"]
         config.weights.graham_safety.debt_to_equity = best_params["graham_safety"]["debt_to_equity"]
         config.weights.graham_safety.pe_ratio = best_params["graham_safety"]["pe_ratio"]
-        
+
         # Fisher weights
         config.weights.fisher_growth.revenue_growth_yoy = best_params["fisher_growth"]["revenue_growth_yoy"]
         config.weights.fisher_growth.eps_growth_yoy = best_params["fisher_growth"]["eps_growth_yoy"]
         config.weights.fisher_growth.rd_intensity = best_params["fisher_growth"]["rd_intensity"]
-        
+
         # Buffett weights
         config.weights.buffett_quality.roic = best_params["buffett_quality"]["roic"]
         config.weights.buffett_quality.operating_margin = best_params["buffett_quality"]["operating_margin"]
         config.weights.buffett_quality.fcf_to_net_income = best_params["buffett_quality"]["fcf_to_net_income"]
-        
+
         # Scoring ranges
         config.scoring_ranges.pe_ratio = best_params["scoring_ranges"]["pe_ratio"]
         config.scoring_ranges.current_ratio = best_params["scoring_ranges"]["current_ratio"]
@@ -356,7 +344,7 @@ def main():
         config.scoring_ranges.eps_growth_yoy = best_params["scoring_ranges"]["eps_growth_yoy"]
         config.scoring_ranges.roic = best_params["scoring_ranges"]["roic"]
         config.scoring_ranges.operating_margin = best_params["scoring_ranges"]["operating_margin"]
-        
+
         logger.info(f"Saving updated configuration to {args.config}...")
         try:
             save_config_to_file(config, args.config)

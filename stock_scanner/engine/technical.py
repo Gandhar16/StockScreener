@@ -1,7 +1,8 @@
 import logging
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ class MarketStructureEngine:
         self.window_size = window_size
         self.tolerance_pct = tolerance_pct
 
-    def analyze_structure(self, df: pd.DataFrame) -> Dict[str, Any]:
+    def analyze_structure(self, df: pd.DataFrame) -> dict[str, Any]:
         """
         Performs full market structure analysis on historical OHLC DataFrame.
         """
@@ -60,7 +61,7 @@ class MarketStructureEngine:
             "context": context
         }
 
-    def _find_pivots(self, df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def _find_pivots(self, df: pd.DataFrame) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Detects local maxima (highs) and minima (lows) in OHLC data.
         Requires the pivot bar to be strictly greater/less than its immediate
@@ -126,12 +127,12 @@ class MarketStructureEngine:
         return p_highs, p_lows
 
     def _build_horizontal_zones(
-        self, 
-        df: pd.DataFrame, 
-        pivots: List[Dict[str, Any]], 
+        self,
+        df: pd.DataFrame,
+        pivots: list[dict[str, Any]],
         level_type: str,
         current_price: float
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Clusters pivot points using Agglomerative Clustering (following day0market/support_resistance)
         to find horizontal S&R zones, then rates each zone using the TouchScorer algorithm.
@@ -140,7 +141,7 @@ class MarketStructureEngine:
             return []
 
         prices = np.array([p["price"] for p in pivots])
-        
+
         if len(prices) == 1:
             p = pivots[0]
             price = p["price"]
@@ -161,16 +162,17 @@ class MarketStructureEngine:
 
         # 1. Cluster pivot prices using AgglomerativeClustering
         from sklearn.cluster import AgglomerativeClustering
-        from stock_scanner.pricelevels.scoring.touch_scorer import TouchScorer, PointEventType
-        
+
+        from stock_scanner.pricelevels.scoring.touch_scorer import PointEventType, TouchScorer
+
         distance_threshold = self.tolerance_pct * current_price
-        
+
         clustering = AgglomerativeClustering(
             distance_threshold=distance_threshold,
             n_clusters=None,
             linkage='complete'
         )
-        
+
         try:
             clustering.fit(prices.reshape(-1, 1))
             labels = clustering.labels_
@@ -209,15 +211,15 @@ class MarketStructureEngine:
         zones = []
         n_days = len(df)
 
-        for idx, (level_dict, score_tuple) in enumerate(zip(levels_to_score, scorer.scores)):
+        for idx, (level_dict, score_tuple) in enumerate(zip(levels_to_score, scorer.scores, strict=False)):
             center_price = level_dict['price']
-            score_i, scored_price, point_score = score_tuple
-            
+            _score_i, _scored_price, point_score = score_tuple
+
             cluster_prices = list(clusters_dict.values())[idx]
             min_price = float(np.min(cluster_prices))
             max_price = float(np.max(cluster_prices))
             pivot_touch_count = len(cluster_prices)
-            
+
             events = point_score.point_event_list
             touch_events = [e for e in events if e.type in (
                 PointEventType.TOUCH_DOWN,
@@ -225,7 +227,7 @@ class MarketStructureEngine:
                 PointEventType.TOUCH_UP,
                 PointEventType.TOUCH_UP_HIGHLOW
             )]
-            
+
             if touch_events:
                 latest_event_time = touch_events[-1].timestamp
                 matching_rows = df_copy[df_copy['Datetime'] == latest_event_time]
@@ -264,7 +266,7 @@ class MarketStructureEngine:
                     row = matching_rows.iloc[-1]
                     reaction_strengths.append((row['High'] - row['Low']) / row['Close'])
             avg_reaction = float(np.mean(reaction_strengths)) if reaction_strengths else 0.0
-            
+
             distance_pct = (center_price - current_price) / current_price
             strength_score = float(point_score.score + (pivot_touch_count * 10.0))
 
@@ -288,11 +290,11 @@ class MarketStructureEngine:
     def _detect_trendlines(
         self,
         df: pd.DataFrame,
-        pivots: List[Dict[str, Any]],
+        pivots: list[dict[str, Any]],
         line_type: str,
         current_price: float,
         term: str = "long"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Detects diagonal trendlines using a pivot-based approach.
 
@@ -338,7 +340,7 @@ class MarketStructureEngine:
         break_tolerance = 0.025
         prices_col = 'Low' if line_type == "support" else 'High'
 
-        candidates: List[Dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
         hw = self.window_size  # half-window for anchor snapping
 
         def snap_anchor(idx: int):
@@ -384,7 +386,7 @@ class MarketStructureEngine:
                 intercept = y1 - slope * x1
 
                 # Collect all pivots that sit within touch_tolerance of the line
-                touch_indices: List[int] = []
+                touch_indices: list[int] = []
                 for p in local_pivots:
                     xi = p["index"]
                     line_val = slope * xi + intercept
@@ -481,7 +483,7 @@ class MarketStructureEngine:
         # tiebreaker so widely-anchored lines beat same-score short-anchor ones.
         candidates.sort(key=lambda x: (x["strength_score"], x["anchor_span"]), reverse=True)
 
-        filtered: List[Dict[str, Any]] = []
+        filtered: list[dict[str, Any]] = []
         for cand in candidates:
             is_duplicate = False
             for accepted in filtered:
@@ -498,12 +500,12 @@ class MarketStructureEngine:
         return filtered[:10]
 
     def _classify_context(
-        self, 
+        self,
         current_price: float,
-        supports: List[Dict[str, Any]], 
-        resistances: List[Dict[str, Any]],
-        s_trendlines: List[Dict[str, Any]],
-        r_trendlines: List[Dict[str, Any]]
+        supports: list[dict[str, Any]],
+        resistances: list[dict[str, Any]],
+        s_trendlines: list[dict[str, Any]],
+        r_trendlines: list[dict[str, Any]]
     ) -> str:
         """
         Classifies the asset's current price position relative to detected support & resistance zones.
@@ -525,7 +527,7 @@ class MarketStructureEngine:
         # Classification rules
         if closest_support and abs(current_price - closest_support["center_price"]) / closest_support["center_price"] <= 0.015:
             return "Testing Horizontal Support"
-        
+
         if closest_resistance and abs(closest_resistance["center_price"] - current_price) / current_price <= 0.015:
             return "Testing Horizontal Resistance"
 

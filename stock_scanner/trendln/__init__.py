@@ -1,10 +1,19 @@
 import numpy as np
+
 #exec(open(r'D:\OneDrive\documents\Projects\trader\trendln\trendln\__init__.py').read())
 
 def datefmt(xdate, cal=None):
-    from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday, nearest_workday, \
-        USMartinLutherKingJr, USPresidentsDay, GoodFriday, USMemorialDay, \
-        USLaborDay, USThanksgivingDay
+    from pandas.tseries.holiday import (
+        AbstractHolidayCalendar,
+        GoodFriday,
+        Holiday,
+        USLaborDay,
+        USMartinLutherKingJr,
+        USMemorialDay,
+        USPresidentsDay,
+        USThanksgivingDay,
+        nearest_workday,
+    )
     from pandas.tseries.offsets import CustomBusinessDay
     class USTradingCalendar(AbstractHolidayCalendar):
         rules = [
@@ -18,7 +27,7 @@ def datefmt(xdate, cal=None):
             USThanksgivingDay,
             Holiday('Christmas', month=12, day=25, observance=nearest_workday)
         ]
-    if cal == None: cal = USTradingCalendar()
+    if cal is None: cal = USTradingCalendar()
     def mydate(x,pos):
         #print((x,pos))
         val = int(x + 0.5)
@@ -30,9 +39,9 @@ def datefmt(xdate, cal=None):
 def plot_sup_res_learn(curdir, hist):
     import os
     if not os.path.isdir(os.path.join(curdir, 'data')): os.mkdir(os.path.join(curdir, 'data')) #image folder
-    import pandas as pd
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
+    import pandas as pd
     #for x in plt.get_fignums(): plt.close(plt.figure(x)) #clean up when crashes occur and figures left open
     #plt.get_backend(): 'TkAgg' is default
     hist = hist[:'2019-10-07']
@@ -54,14 +63,14 @@ def plot_sup_res_learn(curdir, hist):
                            r'Distance between Points: d=$\sqrt{(x_1-x_0)^2+(y_1-y_0)^2}$', (0, 0))
         plt.subplot(spec[0, 0])
         m = (hist.Close.iloc[-3] - hist.Close.iloc[-1]) / -2
-        b1, b2 = hist.Close.iloc[-1] - m * 2, hist.Close.iloc[-3] - m * 0
+        b1, _b2 = hist.Close.iloc[-1] - m * 2, hist.Close.iloc[-3] - m * 0
         d = abs(m * 1 + b1 - hist.Close.iloc[-2])
         dist = np.sqrt(np.square(hist.Close.iloc[-3] - hist.Close.iloc[-1]) + np.square(-2))
         height = hist.Close.iloc[-3:].max() - hist.Close.iloc[-3:].min()
         plt.plot(range(len(hist.Close)-3, len(hist.Close)), hist.Close.iloc[-3:])
         plt.yticks(hist.Close.iloc[-3:])
         plt.plot([len(hist.Close)-3, len(hist.Close)-1], [hist.Close.iloc[-3], hist.Close.iloc[-1]], 'g--')
-        #perpendicular slope: 1/-m, intercept to midpoint b=y-mx: 
+        #perpendicular slope: 1/-m, intercept to midpoint b=y-mx:
         #intcpt = (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2 - (-1/m)
 
         ax = plt.gca()
@@ -76,16 +85,16 @@ def plot_sup_res_learn(curdir, hist):
         #(len(hist.Close)-3, hist.Close.iloc[-3])
         #a = plt.annotate('', (0.1 * drawdim[0] / xaxwdt, mvisual * (0.1 * drawdim[0] / xaxwdt) + intcpt), (2.1 * drawdim[0] / xaxwdt, mvisual * (2.1 * drawdim[0] / xaxwdt) + intcpt), xycoords='axes pixels', textcoords='axes pixels', arrowprops={'arrowstyle':'-['})
         intcpt = ((hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2 - ax.get_ylim()[0]) * drawdim[1] / yaxhgt - (-(drawdim[0] / 2) / mvisual)
-        ann = plt.annotate(r'$d=\sqrt{{({}-{})^2+({}-{})^2}}={}$'.format(hist.Close.iloc[-3], hist.Close.iloc[-1], 0, 2, round(dist, 2)), (len(hist.Close)-2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), ax.transData.inverted().transform(((drawdim[0] * 0.54)+bbox.x0, (-(drawdim[0] * 0.54)/mvisual + intcpt)+bbox.y0)), textcoords='data', color='green', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
+        ann = plt.annotate(rf'$d=\sqrt{{({hist.Close.iloc[-3]}-{hist.Close.iloc[-1]})^2+({0}-{2})^2}}={round(dist, 2)}$', (len(hist.Close)-2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), ax.transData.inverted().transform(((drawdim[0] * 0.54)+bbox.x0, (-(drawdim[0] * 0.54)/mvisual + intcpt)+bbox.y0)), textcoords='data', color='green', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
     #print(drawdim, ann.xyann, mvisual, intcpt, ax.get_xlim())
-        plt.annotate(r'$b={}-{}*{}={}-{}*{}={}$'.format(hist.Close.iloc[-1], round(m, 2), 2, hist.Close.iloc[-3], round(m, 2), 0, b1), (len(hist.Close)-3, hist.Close.iloc[-3]), (len(hist.Close)-3, hist.Close.iloc[-3] - height*0.1), arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$b={hist.Close.iloc[-1]}-{round(m, 2)}*{2}={hist.Close.iloc[-3]}-{round(m, 2)}*{0}={b1}$', (len(hist.Close)-3, hist.Close.iloc[-3]), (len(hist.Close)-3, hist.Close.iloc[-3] - height*0.1), arrowprops={'arrowstyle':'->'})
         plt.plot([len(hist.Close)-2, len(hist.Close)-2], [m * 1 + b1, hist.Close.iloc[-2]], 'r--')
         plt.annotate((r'$d=$' + '\n' + r'$\left|{}*{}+{}-{}\right|$' + '\n' + r'$={}$').format(round(m, 2), 1, b1, hist.Close.iloc[-2], round(d, 2)), (len(hist.Close)-2, (m * 1 + b1 + hist.Close.iloc[-2]) / 2), (len(hist.Close)-2+0.1, (m * 1 + b1 + hist.Close.iloc[-2]) / 2), va='center', color='red', arrowprops={'arrowstyle':'-[', 'color':'red'})
-        plt.annotate(r'$m=\frac{{{}}}{{{}}}={}$'.format(round(hist.Close.iloc[-3] - hist.Close.iloc[-1], 2), 0 - 2, round(m, 2)), (len(hist.Close)-2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), (len(hist.Close)-2+0.2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2 - height * 0.1), color='black', arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$m=\frac{{{round(hist.Close.iloc[-3] - hist.Close.iloc[-1], 2)}}}{{{0 - 2}}}={round(m, 2)}$', (len(hist.Close)-2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), (len(hist.Close)-2+0.2, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2 - height * 0.1), color='black', arrowprops={'arrowstyle':'->'})
         plt.plot([len(hist.Close)-3, len(hist.Close)-1], [hist.Close.iloc[-3], hist.Close.iloc[-3]], 'c--')
-        plt.annotate(r'$\Delta x={}-{}={}$'.format(0, 2, 0 - 2), (len(hist.Close)-2, hist.Close.iloc[-3]), (len(hist.Close)-2, hist.Close.iloc[-3] + height * 0.10), color='cyan', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
+        plt.annotate(rf'$\Delta x={0}-{2}={0 - 2}$', (len(hist.Close)-2, hist.Close.iloc[-3]), (len(hist.Close)-2, hist.Close.iloc[-3] + height * 0.10), color='cyan', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
         plt.plot([len(hist.Close)-1, len(hist.Close)-1], [hist.Close.iloc[-3], hist.Close.iloc[-1]], 'c--')
-        plt.annotate(r'$\Delta y={}-{}={}$'.format(hist.Close.iloc[-3], hist.Close.iloc[-1], round(hist.Close.iloc[-3] - hist.Close.iloc[-1], 2)), (len(hist.Close)-1, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), (len(hist.Close)-2+0.5, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), color='cyan', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
+        plt.annotate(rf'$\Delta y={hist.Close.iloc[-3]}-{hist.Close.iloc[-1]}={round(hist.Close.iloc[-3] - hist.Close.iloc[-1], 2)}$', (len(hist.Close)-1, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), (len(hist.Close)-2+0.5, (hist.Close.iloc[-3] + hist.Close.iloc[-1]) / 2), color='cyan', ha='center', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
 
         plt.title('Closing Price Points Demonstrating Line Calculations')
         plt.xlabel('Date')
@@ -132,36 +141,36 @@ def plot_sup_res_learn(curdir, hist):
                            r'Regression slope: $m=\frac{\sum_{i=1}^n(x_i-\bar{x})(y_i-\bar{y})}{\sum_{i=1}^n(x_i-\bar{x})^2}$' + '  ' +
                            r'Regression intercept: $b=\bar{y}-m\bar{x}$' + '\n' +
                            r'Sum of Squared Residuals for expected $y_i$ $(\hat{y}_i)$: $SSR=\sum_{i=1}^n{(y_i-\hat{y}_i)^2}$' + '\n' +
-                           r'Standard Error of Slope: $\sigma_m=\sqrt{\frac{SSR}{(n-2)\sum_{i=1}^n{(x_i-\bar{x})^2}}}$' + '  ' + 
+                           r'Standard Error of Slope: $\sigma_m=\sqrt{\frac{SSR}{(n-2)\sum_{i=1}^n{(x_i-\bar{x})^2}}}$' + '  ' +
                            r'Standard Error of Intercept: $\sigma_b=\sigma_m\sqrt{\frac{\sum_{i=1}^nx_i^2}{n}}$', (0, 0))
         plt.subplot(spec[0, 0])
         plt.plot(range(len(hist.Close)-3, len(hist.Close)), hist.Close.iloc[-3:], 'bo')
         xbar, ybar = (0 + 1 + 2) / 3, (hist.Close.iloc[-3] + hist.Close.iloc[-2] + hist.Close.iloc[-1]) / 3
         height = hist.Close.iloc[-3:].max() - hist.Close.iloc[-3:].min()
         plt.hlines(ybar, len(hist.Close)-3, len(hist.Close)-1, colors='r', linestyles='--')
-        plt.annotate(r'$\bar{{x}}=\frac{{{}+{}+{}}}{{{}}}={}$'.format(0, 1, 2, 3, 1), (xbar + len(hist.Close)-3, (hist.Close.iloc[-3:].min() + hist.Close.iloc[-3:].max()) / 2), (xbar + len(hist.Close)-3, hist.Close.iloc[-3:].min()), color='red', va='center', arrowprops={'arrowstyle':'->', 'color':'red'})
+        plt.annotate(rf'$\bar{{x}}=\frac{{{0}+{1}+{2}}}{{{3}}}={1}$', (xbar + len(hist.Close)-3, (hist.Close.iloc[-3:].min() + hist.Close.iloc[-3:].max()) / 2), (xbar + len(hist.Close)-3, hist.Close.iloc[-3:].min()), color='red', va='center', arrowprops={'arrowstyle':'->', 'color':'red'})
         plt.vlines(xbar + len(hist.Close)-3, hist.Close.iloc[-3:].min(), hist.Close.iloc[-3:].max(), colors='r', linestyles='--')
-        plt.annotate(r'$\bar{{y}}=\frac{{{}+{}+{}}}{{{}}}={}$'.format(hist.Close.iloc[-3], hist.Close.iloc[-2], hist.Close.iloc[-1], 3, round(ybar, 2)), (len(hist.Close)-2, ybar), (len(hist.Close)-1, ybar - height * 0.1), color='red', va='top', ha='right', arrowprops={'arrowstyle':'->', 'color':'red'})
+        plt.annotate(rf'$\bar{{y}}=\frac{{{hist.Close.iloc[-3]}+{hist.Close.iloc[-2]}+{hist.Close.iloc[-1]}}}{{{3}}}={round(ybar, 2)}$', (len(hist.Close)-2, ybar), (len(hist.Close)-1, ybar - height * 0.1), color='red', va='top', ha='right', arrowprops={'arrowstyle':'->', 'color':'red'})
         m = ((0 - xbar) * (hist.Close.iloc[-3] - ybar) + (1 - xbar) * (hist.Close.iloc[-2] - ybar) + (2 - xbar) * (hist.Close.iloc[-1] - ybar)) / (np.square(0-xbar)+np.square(1-xbar)+np.square(2-xbar))
         b = ybar - m * xbar
         SSR = np.square(hist.Close.iloc[-3] - (m * 0 + b)) + np.square(hist.Close.iloc[-2] - (m * 1 + b)) + np.square(hist.Close.iloc[-1] - (m * 2 + b))
         err1 = np.sqrt(SSR / ((3 - 2) * (np.square(0-xbar)+np.square(1-xbar)+np.square(2-xbar))))
         err2 = err1*np.sqrt((np.square(0)+np.square(1)+np.square(2))/3)
-        plt.annotate(r'$\hat{{y}}_0={}*{}+{}={}$'.format(round(m, 2), 0, round(b, 2), round(m*0+b, 2)), (len(hist.Close) - 3, m*0+b), (len(hist.Close) - 3 + 0.1, m*0+b), va='top', arrowprops={'arrowstyle':'->'})
-        plt.annotate(r'$\hat{{y}}_1={}*{}+{}={}$'.format(round(m, 2), 1, round(b, 2), round(m*1+b, 2)), (len(hist.Close) - 2, m*1+b), (len(hist.Close) - 2 + 0.15, m*1+b+height*0.01), arrowprops={'arrowstyle':'->'})
-        plt.annotate(r'$\hat{{y}}_2={}*{}+{}={}$'.format(round(m, 2), 2, round(b, 2), round(m*2+b, 2)), (len(hist.Close) - 1, m*2+b), (len(hist.Close) - 1 - 0.1, m*2+b+height*0.1), ha='right', arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$\hat{{y}}_0={round(m, 2)}*{0}+{round(b, 2)}={round(m*0+b, 2)}$', (len(hist.Close) - 3, m*0+b), (len(hist.Close) - 3 + 0.1, m*0+b), va='top', arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$\hat{{y}}_1={round(m, 2)}*{1}+{round(b, 2)}={round(m*1+b, 2)}$', (len(hist.Close) - 2, m*1+b), (len(hist.Close) - 2 + 0.15, m*1+b+height*0.01), arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$\hat{{y}}_2={round(m, 2)}*{2}+{round(b, 2)}={round(m*2+b, 2)}$', (len(hist.Close) - 1, m*2+b), (len(hist.Close) - 1 - 0.1, m*2+b+height*0.1), ha='right', arrowprops={'arrowstyle':'->'})
         plt.plot([len(hist.Close) - 3, len(hist.Close) - 3], [hist.Close.iloc[-3], ybar], color='green')
         plt.plot([len(hist.Close) - 2, len(hist.Close) - 2], [hist.Close.iloc[-2], ybar], color='green')
         plt.plot([len(hist.Close) - 1, len(hist.Close) - 1], [hist.Close.iloc[-1], ybar], color='green')
-        plt.annotate(r'$y_0-\bar{{y}}={}$'.format(round(hist.Close.iloc[-3] - ybar, 2)), (len(hist.Close) - 3, (hist.Close.iloc[-3] + ybar) / 2 + height * 0.1), (len(hist.Close) - 3 + 0.1, (hist.Close.iloc[-3] + ybar) / 2 + height * 0.1), color='green', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
-        plt.annotate(r'$y_1-\bar{{y}}={}$'.format(round(hist.Close.iloc[-2] - ybar, 2)), (len(hist.Close) - 2, (hist.Close.iloc[-2] + ybar) / 2 + height * 0.1), (len(hist.Close) - 2 + 0.1, (hist.Close.iloc[-2] + ybar) / 2 + height * 0.1), color='green', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
-        plt.annotate(r'$y_2-\bar{{y}}={}$'.format(round(hist.Close.iloc[-1] - ybar, 2)), (len(hist.Close) - 1, (hist.Close.iloc[-1] + ybar) / 2), (len(hist.Close) - 1 - 0.1, (hist.Close.iloc[-1] + ybar) / 2), color='green', va='center', ha='right', arrowprops={'arrowstyle':'-[', 'color':'green'})
+        plt.annotate(rf'$y_0-\bar{{y}}={round(hist.Close.iloc[-3] - ybar, 2)}$', (len(hist.Close) - 3, (hist.Close.iloc[-3] + ybar) / 2 + height * 0.1), (len(hist.Close) - 3 + 0.1, (hist.Close.iloc[-3] + ybar) / 2 + height * 0.1), color='green', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
+        plt.annotate(rf'$y_1-\bar{{y}}={round(hist.Close.iloc[-2] - ybar, 2)}$', (len(hist.Close) - 2, (hist.Close.iloc[-2] + ybar) / 2 + height * 0.1), (len(hist.Close) - 2 + 0.1, (hist.Close.iloc[-2] + ybar) / 2 + height * 0.1), color='green', va='center', arrowprops={'arrowstyle':'-[', 'color':'green'})
+        plt.annotate(rf'$y_2-\bar{{y}}={round(hist.Close.iloc[-1] - ybar, 2)}$', (len(hist.Close) - 1, (hist.Close.iloc[-1] + ybar) / 2), (len(hist.Close) - 1 - 0.1, (hist.Close.iloc[-1] + ybar) / 2), color='green', va='center', ha='right', arrowprops={'arrowstyle':'-[', 'color':'green'})
         plt.plot([len(hist.Close) - 3, len(hist.Close) - 3], [hist.Close.iloc[-3], m*0+b], color='cyan')
         plt.plot([len(hist.Close) - 2, len(hist.Close) - 2], [hist.Close.iloc[-2], m*1+b], color='cyan')
         plt.plot([len(hist.Close) - 1, len(hist.Close) - 1], [hist.Close.iloc[-1], m*2+b], color='cyan')
-        plt.annotate(r'$y_0-\hat{{y}}={}$'.format(round(hist.Close.iloc[-3] - (m*0+b), 2)), (len(hist.Close) - 3, (hist.Close.iloc[-3] + m*0+b) / 2), (len(hist.Close) - 3 + 0.1, (hist.Close.iloc[-3] + m*0+b) / 2), color='cyan', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
-        plt.annotate(r'$y_1-\hat{{y}}={}$'.format(round(hist.Close.iloc[-2] - (m*1+b), 2)), (len(hist.Close) - 2, (hist.Close.iloc[-2] + m*1+b) / 2), (len(hist.Close) - 2 + 0.1, (hist.Close.iloc[-2] + m*1+b) / 2), color='cyan', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
-        plt.annotate(r'$y_2-\hat{{y}}={}$'.format(round(hist.Close.iloc[-1] - (m*2+b), 2)), (len(hist.Close) - 1, (hist.Close.iloc[-1] + m*2+b) / 2 - height * 0.05), (len(hist.Close) - 1 - 0.1, (hist.Close.iloc[-1] + m*2+b) / 2 - height * 0.05), color='cyan', va='center', ha='right', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
+        plt.annotate(rf'$y_0-\hat{{y}}={round(hist.Close.iloc[-3] - (m*0+b), 2)}$', (len(hist.Close) - 3, (hist.Close.iloc[-3] + m*0+b) / 2), (len(hist.Close) - 3 + 0.1, (hist.Close.iloc[-3] + m*0+b) / 2), color='cyan', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
+        plt.annotate(rf'$y_1-\hat{{y}}={round(hist.Close.iloc[-2] - (m*1+b), 2)}$', (len(hist.Close) - 2, (hist.Close.iloc[-2] + m*1+b) / 2), (len(hist.Close) - 2 + 0.1, (hist.Close.iloc[-2] + m*1+b) / 2), color='cyan', va='center', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
+        plt.annotate(rf'$y_2-\hat{{y}}={round(hist.Close.iloc[-1] - (m*2+b), 2)}$', (len(hist.Close) - 1, (hist.Close.iloc[-1] + m*2+b) / 2 - height * 0.05), (len(hist.Close) - 1 - 0.1, (hist.Close.iloc[-1] + m*2+b) / 2 - height * 0.05), color='cyan', va='center', ha='right', arrowprops={'arrowstyle':'-[', 'color':'cyan'})
         plt.annotate((r'$m=\frac{{({}-{})*{}+({}-{})*{}+({}-{})*{}}}{{({}-{})^2+({}-{})^2+({}-{})^2}}$' + '\n' + '=${}$' + '\n' +
                      r'$SSR={}^2+{}^2+{}^2={}$' + '\n' +
                      r'$\sigma_m=\sqrt{{\frac{{{}}}{{({}-2)(({}-{})^2+({}-{})^2+({}-{})^2)}}}}={}$' + '\n' +
@@ -171,7 +180,7 @@ def plot_sup_res_learn(curdir, hist):
                              round(SSR, 2), 3, 0, round(xbar, 2), 1, round(xbar, 2), 2, round(xbar, 2), round(err1, 2),
                              round(err1, 2), 0, 1, 2, 3, round(err2, 2)),
                      (len(hist.Close)-2, m * 1 + b), (len(hist.Close)-1, hist.Close.iloc[-3:].min()), color='blue', va='bottom', ha='right', arrowprops={'arrowstyle':'->', 'color':'blue'})
-        plt.annotate(r'$b={}-{}*{}={}$'.format(round(ybar, 2), round(m, 2), xbar, round(b, 2)), (len(hist.Close)-3, b), (len(hist.Close)-3+0.1, b), color='blue', ha='left', arrowprops={'arrowstyle':'->', 'color':'blue'})
+        plt.annotate(rf'$b={round(ybar, 2)}-{round(m, 2)}*{xbar}={round(b, 2)}$', (len(hist.Close)-3, b), (len(hist.Close)-3+0.1, b), color='blue', ha='left', arrowprops={'arrowstyle':'->', 'color':'blue'})
         plt.plot([len(hist.Close)-3, len(hist.Close)-1], [b, 2 * m + b])
         ax = plt.gca()
         plt.yticks(hist.Close.iloc[-3:])
@@ -207,7 +216,7 @@ def plot_sup_res_learn(curdir, hist):
         plt.plot([len(hist.Close)-10, len(hist.Close)-1], [hist.Close.iloc[-10], hist.Close.iloc[-1]], 'k-')
         mn, mx = min(hist.Close.iloc[-10], hist.Close.iloc[-1]), max(hist.Close.iloc[-10], hist.Close.iloc[-1])
         plt.plot([len(hist.Close)-10, len(hist.Close)-1], [mn, mx], 'b--')
-        plt.annotate(r'Diagonal length=$\sqrt{{{}^2+{}^2}}={}$'.format(9, round(mx-mn, 2), round(np.sqrt(np.square(9)+np.square(mx-mn)), 2)), (len(hist.Close)-1, mx), (len(hist.Close)-1-1, mx), ha='right', va='top', color='blue', arrowprops={'arrowstyle':'->', 'color':'blue'})
+        plt.annotate(rf'Diagonal length=$\sqrt{{{9}^2+{round(mx-mn, 2)}^2}}={round(np.sqrt(np.square(9)+np.square(mx-mn)), 2)}$', (len(hist.Close)-1, mx), (len(hist.Close)-1-1, mx), ha='right', va='top', color='blue', arrowprops={'arrowstyle':'->', 'color':'blue'})
         #plt.xlim(0, 30)
         #plt.ylim(0, 30)
         #plt.gca().add_line(plt.Line2D([0, 30], [30, 0]))
@@ -217,30 +226,30 @@ def plot_sup_res_learn(curdir, hist):
     #plt.xlim(ax.get_xlim()[0] - 4, ax.get_xlim()[1])
         m = (hist.Close.iloc[-10] - hist.Close.iloc[-1]) / (0 - 9)
         b = hist.Close.iloc[-10] - m * 0 - mn #+ height * 0.2
-        plt.annotate(r'$y={}x+{}$'.format(round(m, 2), round(b, 2)), (len(hist.Close)-5.5, (mn+mx)/2), (len(hist.Close)-5.5, mn+(mx-mn)*0.7), arrowprops={'arrowstyle':'->'})
+        plt.annotate(rf'$y={round(m, 2)}x+{round(b, 2)}$', (len(hist.Close)-5.5, (mn+mx)/2), (len(hist.Close)-5.5, mn+(mx-mn)*0.7), arrowprops={'arrowstyle':'->'})
         #axes origin is (len(hist.Close)-10, hist.Close.iloc[-10:].min()-height*0.2)
         bperp = 0 #hist.Close.iloc[-10:].min() - (-1/m * 0)
         #y0=mx0+b, y0=-x0/m+bperp, mx0+b=-x0/m+bperp, m^2x0+m(b-bperp)=-x0, x0(m^2+1)=m(bperp-b), x0=m(bperp-b)/(m^2+1) =(bperp-b)/(m-(-1/m))=(bperb-b)/((m^2+1)/m)
         x0 = (m * (bperp - b)) / (m*m+1)
         angle = np.arctan((-x0/m+bperp) / (x0))
     #print((angle * 180 / np.pi, height, m, b, -1/m, bperp, x0, -x0/m+bperp, x0*m+b, np.abs(b)/np.sqrt(1+m*m)))
-        plt.annotate('', (len(hist.Close)-10, mn), (len(hist.Close)-10 + x0, mn + -x0/m + bperp), arrowprops=dict(arrowstyle="<|-", color='red'))
+        plt.annotate('', (len(hist.Close)-10, mn), (len(hist.Close)-10 + x0, mn + -x0/m + bperp), arrowprops={'arrowstyle': "<|-", 'color': 'red'})
         plt.gca().add_patch(mpatches.Wedge((len(hist.Close)-10 + x0, mn + -x0/m + bperp), 1, angle * 180 / np.pi - 180, angle * 180 / np.pi - 90, fill=False))
         plt.gca().add_patch(mpatches.Wedge((len(hist.Close)-10 + x0, mn + -x0/m + bperp), 0.5, angle * 180 / np.pi - 270, angle * 180 / np.pi - 180, fill=False))
         plt.annotate(r'$90\circ$', (len(hist.Close)-10 + x0 - 1, mn + -x0/m + bperp - 2))
         plt.annotate(r'$90\circ$', (len(hist.Close)-10 + x0 - 1, mn + -x0/m + bperp + 1))
         plt.gca().add_patch(mpatches.Wedge((len(hist.Close)-10, mn), 3, 0, angle * 180 / np.pi, fill=False))
-        plt.annotate(r'$\theta={}^\circ$'.format(round(angle * 180/np.pi, 2)), (len(hist.Close) - 6.75, mn+0.1))
+        plt.annotate(rf'$\theta={round(angle * 180/np.pi, 2)}^\circ$', (len(hist.Close) - 6.75, mn+0.1))
         plt.gca().add_patch(mpatches.Wedge((len(hist.Close)-10, mx), 3, 270, 270 + angle * 180 / np.pi, fill=False))
         plt.annotate(r'$\theta$', (len(hist.Close)-9.5, mx-5))
-        plt.annotate((r'$\rho=\frac{{\left|{}+{}*{}-{}\right|}}{{\sqrt{{1 + {}^2}}}}$' + '\n' + '$={}\cos {}+{}\sin {}$' + '\n' + '$={}\cos {}+{}\sin {}$' + '\n' + '$={}$').format(
+        plt.annotate((r'$\rho=\frac{{\left|{}+{}*{}-{}\right|}}{{\sqrt{{1 + {}^2}}}}$' + '\n' + r'$={}\cos {}+{}\sin {}$' + '\n' + r'$={}\cos {}+{}\sin {}$' + '\n' + '$={}$').format(
             round(b, 2), round(m, 2), 0, 0, round(m, 2),
             0, round(angle*180/np.pi, 2), round(hist.Close.iloc[-10]-mn, 2), round(angle*180/np.pi, 2), 9, round(angle*180/np.pi, 2), hist.Close.iloc[-1]-mn, round(angle*180/np.pi, 2), round(0 * np.cos(angle) + (hist.Close.iloc[-10]-mn) * np.sin(angle), 2)),
-                     (len(hist.Close)-10+x0/2, mn + (-x0/m + bperp) / 2), (len(hist.Close)-10+x0/2, mn + (-x0/m + bperp) / 2+0.9), ha='center', color='red', arrowprops=dict(arrowstyle="->", color='red'))
+                     (len(hist.Close)-10+x0/2, mn + (-x0/m + bperp) / 2), (len(hist.Close)-10+x0/2, mn + (-x0/m + bperp) / 2+0.9), ha='center', color='red', arrowprops={'arrowstyle': "->", 'color': 'red'})
         plt.plot([len(hist.Close)-10, len(hist.Close)-1], [mn, mn], 'k-')
         plt.plot([len(hist.Close)-10, len(hist.Close)-10], [mn, mx], 'k-')
-        plt.annotate('{}'.format(9), (len(hist.Close)-5.5, mn), (len(hist.Close)-5.5, mn+0.5), ha='center', arrowprops=dict(arrowstyle="->"))
-        plt.annotate('{}'.format(round(mx-mn, 2)), (len(hist.Close)-10, (mn+mx)/2), (len(hist.Close)-10+0.5, (mn+mx)/2), ha='left', arrowprops=dict(arrowstyle="->"))
+        plt.annotate(f'{9}', (len(hist.Close)-5.5, mn), (len(hist.Close)-5.5, mn+0.5), ha='center', arrowprops={'arrowstyle': "->"})
+        plt.annotate(f'{round(mx-mn, 2)}', (len(hist.Close)-10, (mn+mx)/2), (len(hist.Close)-10+0.5, (mn+mx)/2), ha='left', arrowprops={'arrowstyle': "->"})
         plt.yticks([hist.Close.iloc[-10], hist.Close.iloc[-1]])
         plt.title('Closing Price Points Demonstrating Hough transform accumulation of rho-theta for 2 point line')
         plt.xlabel('Date')
@@ -259,8 +268,8 @@ def plot_sup_res_learn(curdir, hist):
     def fig_minima():
         h = hist[-10:]
         mins, maxs = calc_support_resistance(h.Close)
-        minimaIdxs, pmin, mintrend, minwindows = mins
-        maximaIdxs, pmax, maxtrend, maxwindows = maxs
+        minimaIdxs, _pmin, _mintrend, _minwindows = mins
+        maximaIdxs, _pmax, _maxtrend, _maxwindows = maxs
         plt.clf()
         plt.gcf().set_size_inches(1024/plt.gcf().dpi, 768/plt.gcf().dpi) #plt.gcf().dpi=100
         plt.subplot(111)
@@ -274,13 +283,13 @@ def plot_sup_res_learn(curdir, hist):
         mom = d_dx(clarr)
         momacc = d2_dx2(clarr)
         for x in range(len(h)):
-            ann = plt.gca().annotate('{}\n'.format(round(mom[x], 2), round(momacc[x], 2)), (x, h.Close.iloc[x]), (x, h.Close.iloc[x] - (h.Close.max() - h.Close.min()) / 3), ha='center') #bbox=dict(boxstyle='round', fc='gray', alpha=0.3)
+            ann = plt.gca().annotate(f'{round(mom[x], 2)}\n', (x, h.Close.iloc[x]), (x, h.Close.iloc[x] - (h.Close.max() - h.Close.min()) / 3), ha='center') #bbox=dict(boxstyle='round', fc='gray', alpha=0.3)
         #plt.rcParams['font.size']
             ext = ann.get_window_extent(renderer = plt.gcf().canvas.get_renderer()).transformed(plt.gca().transData.inverted())
-            ann = plt.gca().annotate('{}'.format(round(momacc[x], 2)), (x, ext.y0), ha='center', va='bottom', color='r')
+            ann = plt.gca().annotate(f'{round(momacc[x], 2)}', (x, ext.y0), ha='center', va='bottom', color='r')
             next = ann.get_window_extent(renderer = plt.gcf().canvas.get_renderer()).transformed(plt.gca().transData.inverted())
-            patch = plt.gca().add_artist(mpatches.FancyBboxPatch((min(ext.x0, next.x0)+0.1, ext.y0), width=max(ext.width, next.width)-0.2, height=ext.height+3, boxstyle='round', fc='gray', alpha=0.3))
-            plt.gca().annotate(''.format(round(mom[x], 2), round(momacc[x], 2)), (x, h.Close.iloc[x]), (x, ext.y1+3), arrowprops={'arrowstyle':'-|>'})
+            plt.gca().add_artist(mpatches.FancyBboxPatch((min(ext.x0, next.x0)+0.1, ext.y0), width=max(ext.width, next.width)-0.2, height=ext.height+3, boxstyle='round', fc='gray', alpha=0.3))
+            plt.gca().annotate('', (x, h.Close.iloc[x]), (x, ext.y1+3), arrowprops={'arrowstyle':'-|>'})
         plt.ylim(h.Close.min() - (h.Close.max() - h.Close.min()) / 2.8, h.Close.max() + (h.Close.max() - h.Close.min()) / 10)
         p1 = mpatches.Patch(color='black', label='Velocity')
         p2 = mpatches.Patch(color='red', label='Acceleration')
@@ -299,8 +308,8 @@ def plot_sup_res_learn(curdir, hist):
     #plt.show()
     def fig_reimann():
         mins, maxs = calc_support_resistance(hist[-250:].Close, sortError = True)
-        minimaIdxs, pmin, mintrend, minwindows = mins
-        maximaIdxs, pmax, maxtrend, maxwindows = maxs
+        _minimaIdxs, _pmin, _mintrend, _minwindows = mins
+        _maximaIdxs, _pmax, maxtrend, _maxwindows = maxs
         plt.clf()
         plt.gcf().set_size_inches(800/plt.gcf().dpi, 720/plt.gcf().dpi) #plt.gcf().dpi=100
         plt.subplot(211)
@@ -326,7 +335,7 @@ def plot_sup_res_learn(curdir, hist):
         for x, y in enumerate(ser):
             plt.bar(x, (m * (x+base) + b) - y if isMin else y - (m * (x+base) + b), color='r' if (y < (m * (x+base) + b) if isMin else y > (m * (x+base) + b)) else 'gray')
 
-        plt.annotate(r'S={}, $\frac{{{}}}{{{}}}$={}$\frac{{\$}}{{day}}$'.format(round(S, 2), round(S, 2), len(range(base, trendline[0][-1]+1)), round(area, 2)) + '\n' + r'Reimann Sum where $\Delta x=x_i-x_{i-1}$,' + '\n' + '$x_i^* \in [x_{i-1}, x_i]$: $S=\sum_{i=1}^n{f(x_i^*)\Delta x_i}$', (0, plt.gca().get_ylim()[0]+5), va='bottom')
+        plt.annotate(rf'S={round(S, 2)}, $\frac{{{round(S, 2)}}}{{{len(range(base, trendline[0][-1]+1))}}}$={round(area, 2)}$\frac{{\$}}{{day}}$' + '\n' + r'Reimann Sum where $\Delta x=x_i-x_{i-1}$,' + '\n' + r'$x_i^* \in [x_{i-1}, x_i]$: $S=\sum_{i=1}^n{f(x_i^*)\Delta x_i}$', (0, plt.gca().get_ylim()[0]+5), va='bottom')
         plt.gca().xaxis.set_major_locator(ticker.MaxNLocator(6))
     #plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
         plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(datefmt(hist[-250:].index)))
@@ -378,7 +387,7 @@ def test_sup_res(curdir):
     assert result == calc_support_resistance(data, method=METHOD_HOUGHPOINTS)
     assert result == calc_support_resistance(data, method=METHOD_HOUGHLINES)
     assert result == calc_support_resistance(data, method=METHOD_PROBHOUGH)
-    import yfinance as yf #pip install yfinance
+    import yfinance as yf  #pip install yfinance
     tick = yf.Ticker('^GSPC')
     hist = tick.history(period="max", rounding=True)
     plot_sup_res_learn(curdir, hist)
@@ -419,12 +428,10 @@ def _resolve_name(value, lookup, param):
         return lookup[value]
     return value
 def check_num_alike(h):
-    if type(h) is list and all([isinstance(x, (bool, int, float)) for x in h]): return True
-    elif type(h) is np.ndarray and h.ndim==1 and h.dtype.kind in 'biuf': return True
+    if (type(h) is list and all(isinstance(x, (bool, int, float)) for x in h)) or (type(h) is np.ndarray and h.ndim==1 and h.dtype.kind in 'biuf'): return True
     else:
         import pandas as pd
-        if type(h) is pd.Series and h.dtype.kind in 'biuf': return True
-        else: return False
+        return bool(type(h) is pd.Series and h.dtype.kind in 'biuf')
 def pandas_to_ohlc(df, low_col=None, high_col=None, close_col=None):
     """Convert a pandas OHLC DataFrame to the format expected by trendln functions.
 
@@ -516,14 +523,14 @@ def pandas_to_ohlc(df, low_col=None, high_col=None, close_col=None):
 
 def get_extrema(h, extmethod=METHOD_NUMDIFF, accuracy=2, include_edge=False):
     extmethod = _resolve_name(extmethod, _EXTMETHOD_NAMES, 'extmethod')
-    if not type(accuracy) is int or accuracy <= 0 or accuracy % 2 != 0:
+    if type(accuracy) is not int or accuracy <= 0 or accuracy % 2 != 0:
         raise ValueError('accuracy must be a positive even integer (e.g. 2, 4, 6, 8)')
     if not isinstance(include_edge, bool):
         raise ValueError('include_edge must be True or False')
     #h must be single dimensional array-like object e.g. List, np.ndarray, pd.Series
-    if type(h) is tuple and len(h) == 2 and (h[0] is None or check_num_alike(h[0])) and (h[1] is None or check_num_alike(h[1])) and (not h[0] is None or not h[1] is None):
+    if type(h) is tuple and len(h) == 2 and (h[0] is None or check_num_alike(h[0])) and (h[1] is None or check_num_alike(h[1])) and (h[0] is not None or h[1] is not None):
         hmin, hmax = h[0], h[1]
-        if not h[0] is None and not h[1] is None and len(hmin) != len(hmax): #not strict requirement, but contextually ideal
+        if h[0] is not None and h[1] is not None and len(hmin) != len(hmax): #not strict requirement, but contextually ideal
             raise ValueError('h does not have a equal length minima and maxima data')
     elif check_num_alike(h): hmin, hmax = None, None
     else: raise ValueError('h is not list, numpy ndarray or pandas Series of numeric values or a 2-tuple thereof')
@@ -532,18 +539,23 @@ def get_extrema(h, extmethod=METHOD_NUMDIFF, accuracy=2, include_edge=False):
         import pandas as pd
         def get_minmax(h):
             rollwin = pd.Series(h).rolling(window=3, min_periods=1, center=True)
-            minFunc = lambda x: len(x) == 3 and x.iloc[0] > x.iloc[1] and x.iloc[2] > x.iloc[1]
-            maxFunc = lambda x: len(x) == 3 and x.iloc[0] < x.iloc[1] and x.iloc[2] < x.iloc[1]
-            numdiff_extrema = lambda func: np.flatnonzero(rollwin.aggregate(func)).tolist()
-            return minFunc, maxFunc, numdiff_extrema            
+            def minFunc(x):
+                return len(x) == 3 and x.iloc[0] > x.iloc[1] and x.iloc[2] > x.iloc[1]
+            def maxFunc(x):
+                return len(x) == 3 and x.iloc[0] < x.iloc[1] and x.iloc[2] < x.iloc[1]
+            def numdiff_extrema(func):
+                return np.flatnonzero(rollwin.aggregate(func)).tolist()
+            return minFunc, maxFunc, numdiff_extrema
     elif extmethod == METHOD_NAIVECONSEC:
         #naive method collapsing duplicate consecutive values
         import pandas as pd
         def get_minmax(h):
             hist = pd.Series(h)
             rollwin = hist.loc[hist.shift(-1) != hist].rolling(window=3, center=True)
-            minFunc = lambda x: x.iloc[0] > x.iloc[1] and x.iloc[2] > x.iloc[1]
-            maxFunc = lambda x: x.iloc[0] < x.iloc[1] and x.iloc[2] < x.iloc[1]
+            def minFunc(x):
+                return x.iloc[0] > x.iloc[1] and x.iloc[2] > x.iloc[1]
+            def maxFunc(x):
+                return x.iloc[0] < x.iloc[1] and x.iloc[2] < x.iloc[1]
             def numdiff_extrema(func):
                 x = rollwin.aggregate(func)
                 return x[x == 1].index.tolist()
@@ -563,10 +575,10 @@ def get_extrema(h, extmethod=METHOD_NUMDIFF, accuracy=2, include_edge=False):
                 return [x for x in range(len(mom))
                         if func(x) and
                             (mom[x] == 0 or #either slope is 0, or it crosses from positive to negative with the closer to 0 of the two chosen or prior if a tie
-                             (x != len(mom) - 1 and (mom[x] > 0 and mom[x+1] < 0 and h[x] >= h[x+1] or #mom[x] >= -mom[x+1]
-                                                     mom[x] < 0 and mom[x+1] > 0 and h[x] <= h[x+1]) or #-mom[x] >= mom[x+1]) or
-                              x != 0 and (mom[x-1] > 0 and mom[x] < 0 and h[x-1] < h[x] or #mom[x-1] < -mom[x] or
-                                          mom[x-1] < 0 and mom[x] > 0 and h[x-1] > h[x])))] #-mom[x-1] < mom[x])))]
+                             ((x != len(mom) - 1 and ((mom[x] > 0 and mom[x+1] < 0 and h[x] >= h[x+1]) or #mom[x] >= -mom[x+1]
+                                                     (mom[x] < 0 and mom[x+1] > 0 and h[x] <= h[x+1]))) or #-mom[x] >= mom[x+1]) or
+                              (x != 0 and ((mom[x-1] > 0 and mom[x] < 0 and h[x-1] < h[x]) or #mom[x-1] < -mom[x] or
+                                          (mom[x-1] < 0 and mom[x] > 0 and h[x-1] > h[x])))))] #-mom[x-1] < mom[x])))]
             return lambda x: momacc[x] > 0, lambda x: momacc[x] < 0, numdiff_extrema
     else: raise ValueError('extmethod must be METHOD_NAIVE, METHOD_NAIVECONSEC, METHOD_NUMDIFF')
     def edge_check(idxs, h_data, is_min):
@@ -593,36 +605,36 @@ def get_extrema(h, extmethod=METHOD_NUMDIFF, accuracy=2, include_edge=False):
         minFunc, maxFunc, numdiff_extrema = get_minmax(h)
         return edge_check(numdiff_extrema(minFunc), h, True), \
                edge_check(numdiff_extrema(maxFunc), h, False)
-    if not hmin is None:
+    if hmin is not None:
         minf = get_minmax(hmin)
         if hmax is None: return edge_check(minf[2](minf[0]), hmin, True)
-    if not hmax is None:
+    if hmax is not None:
         maxf = get_minmax(hmax)
         if hmin is None: return edge_check(maxf[2](maxf[1]), hmax, False)
     return edge_check(minf[2](minf[0]), hmin, True), \
            edge_check(maxf[2](maxf[1]), hmax, False)
-    
+
 #returns (list of minima indexes, list of maxima indexes, [support slope coefficient, intersect], [resistance slope coefficient, intersect], [[support point indexes], (slope, intercept, residual, slope error, intercept error, area on wrong side of trend line per time unit)]
 def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQUREDLOGN,
                             window=125, errpct=0.005, hough_scale=0.01, hough_prob_iter=10,
                             sortError=False, accuracy=2, include_edge=False):
     method = _resolve_name(method, _METHOD_NAMES, 'method')
-    if not type(window) is int:
+    if type(window) is not int:
         raise ValueError('window must be of type int')
-    if not type(errpct) is float:
+    if type(errpct) is not float:
         raise ValueError('errpct must be of type float')
-    if not type(hough_scale) is float:
+    if type(hough_scale) is not float:
         raise ValueError('house_scale must be of type float')
-    if not type(hough_prob_iter) is int:
+    if type(hough_prob_iter) is not int:
         raise ValueError('house_prob_iter must be of type int')
-    if not type(sortError) is bool:
+    if type(sortError) is not bool:
         raise ValueError('sortError must be True of False')
-    if not type(accuracy) is int or accuracy <= 0 or accuracy % 2 != 0:
+    if type(accuracy) is not int or accuracy <= 0 or accuracy % 2 != 0:
         raise ValueError('accuracy must be a positive even integer (e.g. 2, 4, 6, 8)')
     if not isinstance(include_edge, bool):
         raise ValueError('include_edge must be True or False')
-    if type(h) is tuple and len(h) == 2 and (h[0] is None or check_num_alike(h[0])) and (h[1] is None or check_num_alike(h[1])) and (not h[0] is None or not h[1] is None):
-        if not h[0] is None and not h[1] is None and len(h[0]) != len(h[1]): #not strict requirement, but contextually ideal
+    if type(h) is tuple and len(h) == 2 and (h[0] is None or check_num_alike(h[0])) and (h[1] is None or check_num_alike(h[1])) and (h[0] is not None or h[1] is not None):
+        if h[0] is not None and h[1] is not None and len(h[0]) != len(h[1]): #not strict requirement, but contextually ideal
             raise ValueError('h does not have a equal length minima and maxima data')
         hmin, hmax, len_h = h[0], h[1], len(h[1 if h[0] is None else 0])
     elif check_num_alike(h): hmin, hmax, len_h = None, None, len(h)
@@ -652,11 +664,11 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
         ser = np.sqrt(ys / xs)
         return m, b, ys, ser, ser * np.sqrt((x0*x0+x1*x1+x2*x2)/3)
     def get_bestfit(pts):
-        xbar, ybar = [sum(x) / len(x) for x in zip(*pts)]
+        xbar, ybar = [sum(x) / len(x) for x in zip(*pts, strict=False)]
         def subcalc(x, y):
             tx, ty = x - xbar, y - ybar
             return tx * ty, tx * tx, x * x
-        (xy, xs, xx) = [sum(q) for q in zip(*[subcalc(x, y) for x, y in pts])]
+        (xy, xs, xx) = [sum(q) for q in zip(*[subcalc(x, y) for x, y in pts], strict=False)]
         m = xy / xs
         b = ybar - m * xbar
         ys = sum([np.square(y - (m * x + b)) for x, y in pts])
@@ -683,7 +695,7 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
         for x in range(len(Idxs)):
             slopes[x].sort() #key=lambda val: val[0])
             CurIdxs = [Idxs[x]]
-            for y in range(0, len(slopes[x])):
+            for y in range(len(slopes[x])):
                 #distance = abs(slopes[x][y][2] * slopes[x][y+1][1] + slopes[x][y][3] - h[slopes[x][y+1][1]])
                 CurIdxs.append(Idxs[slopes[x][y][1]])
                 if len(CurIdxs) < 3: continue
@@ -739,12 +751,12 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
             x, y = pts[i]
             for t_idx in range(num_thetas):
                 # Calculate rho. diag_len is added for a positive index
-                rho = int(round(x * cos_t[t_idx] + y * sin_t[t_idx])) + diag_len
+                rho = round(x * cos_t[t_idx] + y * sin_t[t_idx]) + diag_len
                 accumulator[rho, t_idx] += 1
         return accumulator, thetas, rhos
     def houghpt(Idxs, h, fltpct, min_h, max_h):
         max_size = int(np.ceil(2/np.tan(np.pi / (360 * 5)))) #~1146
-        m, tested_angles = min_h, np.linspace(-np.pi / 2, np.pi / 2, 360*5) #degree of precision from 90 to 270 degrees with 360*5 increments
+        m, _tested_angles = min_h, np.linspace(-np.pi / 2, np.pi / 2, 360*5) #degree of precision from 90 to 270 degrees with 360*5 increments
         height = int((max_h - m + 1) * (1/hough_scale))
         mx = min(max_size, height)
         scl = (1/hough_scale) * mx / height
@@ -762,7 +774,7 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
         from skimage.transform import hough_line, hough_line_peaks
         hl, theta, d = hough_line(image, theta=tested_angles)
         origin, lines = np.array((0, image.shape[1])), []
-        for pts, angle, dist in zip(*hough_line_peaks(hl, theta, d, threshold=2)): #> threshold
+        for pts, angle, dist in zip(*hough_line_peaks(hl, theta, d, threshold=2), strict=False): #> threshold
             y0, y1 = (dist - origin * np.cos(angle)) / np.sin(angle)
             y0, y1 = y0 / scl + m, y1 / scl + m
             pts, res = find_line_pts(Idxs, 0, y0, image.shape[1], y1, h, fltpct)
@@ -772,7 +784,7 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
         image, tested_angles, scl, m = make_image(Idxs, h, min_h, max_h)
         from skimage.transform import probabilistic_hough_line
         lines = []
-        for x in range(hough_prob_iter):
+        for _x in range(hough_prob_iter):
             lines.extend(probabilistic_hough_line(image, threshold=2, theta=tested_angles, line_length=0,
                                             line_gap=int(np.ceil(np.sqrt(np.square(image.shape[0]) + np.square(image.shape[1]))))))
         l = []
@@ -790,7 +802,7 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
                 if x in p: l.append((r[0], i))
             l.sort() #key=lambda val: val[0])
             if len(l) > 1: CurIdxs = list(trend[l[0][1]][0])
-            for (s, i) in l[1:]:
+            for (_s, i) in l[1:]:
                 CurIdxs += trend[i][0]
                 CurIdxs = list(dict.fromkeys(CurIdxs))
                 CurIdxs.sort()
@@ -811,20 +823,20 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
             fstwin, lastwin = int(x[0][0] / window), int(x[0][-1] / window)
             wins = [[] for _ in range(fstwin, lastwin+1)]
             for y in x[0]: wins[int(y / window) - fstwin].append(y)
-            for y in range(0, lastwin-fstwin):
+            for y in range(lastwin-fstwin):
                 if len(wins[y+1]) == 0 and len(wins[y]) >= 3: windows[fstwin+y].append(wins[y])
                 if len(wins[y]) + len(wins[y + 1]) >= 3:
                     windows[fstwin+y+1].append(wins[y] + wins[y+1])
             if lastwin-fstwin==0 and len(wins[0]) >= 3: windows[fstwin].append(wins[0])
         def fitarea(x):
             fit = get_bestfit([(y, h[y]) for y in x])
-            return (x, fit + (measure_area((x, fit), isMin, h),))
+            return (x, (*fit, measure_area((x, fit), isMin, h)))
         def dosort(x):
             x.sort(key = lambda val: val[1][skey])
             return x
-        return [dosort(list(fitarea(pts) for pts in x)) for x in windows]
+        return [dosort([fitarea(pts) for pts in x]) for x in windows]
     #print((mintrend[:5], maxtrend[:5]))
-    
+
     #find all places where derivative is 0 - in finite case when it crosses positive to negative and choose the closer to 0 value
     #second derivative being positive or negative decides if they are minima or maxima
     #now for all pairs of 3 points construct the average line, rate it based on # of additional points, # of points on the wrong side of the line, and the margin of error for the line passing through all of them
@@ -840,12 +852,12 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
     #zmax, zmxe, _, _, _ = np.polyfit(maximaIdxs, ymax, 1, full=True) #y=zmax[0]*x+zmax[1]
     #pmax = np.poly1d(zmax).c
     def overall_line(idxs, vals):
-        if len(idxs) <= 1: pm, zme = [np.nan, np.nan], [np.nan]
+        if len(idxs) <= 1: pm, _zme = [np.nan, np.nan], [np.nan]
         else:
             p, r = np.polynomial.polynomial.Polynomial.fit(idxs, vals, 1, full=True) #more numerically stable
-            pm, zme = list(reversed(p.convert().coef)), r[0]
+            pm, _zme = list(reversed(p.convert().coef)), r[0]
             if len(pm) == 1: pm.insert(0, 0.0)
-        return pm  
+        return pm
     def calc_all(idxs, h, isMin):
         min_h, max_h = min(h), max(h)
         scale = (max_h - min_h) / len_h
@@ -886,10 +898,10 @@ def calc_support_resistance(h, extmethod = METHOD_NUMDIFF, method=METHOD_NSQURED
         pmin, mintrend, minwindows = calc_all(extremaIdxs[0], h, True)
         pmax, maxtrend, maxwindows = calc_all(extremaIdxs[1], h, False)
     else:
-        if not hmin is None:
+        if hmin is not None:
             pmin, mintrend, minwindows = calc_all(extremaIdxs if hmax is None else extremaIdxs[0], hmin, True)
             if hmax is None: return (extremaIdxs, pmin, mintrend, minwindows)
-        if not hmax is None:            
+        if hmax is not None:
             pmax, maxtrend, maxwindows = calc_all(extremaIdxs if hmin is None else extremaIdxs[1], hmax, False)
             if hmin is None: return (extremaIdxs, pmax, maxtrend, maxwindows)
     return (extremaIdxs[0], pmin, mintrend, minwindows), (extremaIdxs[1], pmax, maxtrend, maxwindows)
@@ -1156,7 +1168,7 @@ def plot_support_resistance(hist, xformatter = None, numbest = 2, fromwindows = 
                 maxx = ln[0][-1]+1
                 while maxx < len_h:
                     ypred = ln[1][0] * maxx + ln[1][1]
-                    if (h[maxx] > ypred and h[maxx-1] < ypred or h[maxx] < ypred and h[maxx-1] > ypred or
+                    if ((h[maxx] > ypred and h[maxx-1] < ypred) or (h[maxx] < ypred and h[maxx-1] > ypred) or
                         ypred > max_h + (max_h-min_h)*pctbound or ypred < min_h - (max_h-min_h)*pctbound): break
                     maxx += 1
             x_vals = np.array((ln[0][0], maxx)) # plt.gca().get_xlim())
@@ -1164,7 +1176,8 @@ def plot_support_resistance(hist, xformatter = None, numbest = 2, fromwindows = 
             if bFirst:
                 ax.plot([ln[0][0], maxx], y_vals, clr, label=lbl)
                 bFirst = False
-            else: ax.plot([ln[0][0], maxx], y_vals, clr)
+            else:
+                ax.plot([ln[0][0], maxx], y_vals, clr)
         return bFirst
     if fromwindows:
         for h, windows, lbl, clr in dispwin:
@@ -1180,7 +1193,8 @@ def plot_support_resistance(hist, xformatter = None, numbest = 2, fromwindows = 
     ax.legend()
     ax.xaxis.set_major_locator(ticker.MaxNLocator(6))
     #ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    if not xformatter is None: ax.xaxis.set_major_formatter(xformatter)
+    if xformatter is not None:
+        ax.xaxis.set_major_formatter(xformatter)
     plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
     #ax.set_position([0, 0, 1, 1])
     #plt.savefig(os.path.join(curdir, 'data', 'suppres.svg'), format='svg', bbox_inches = 'tight')

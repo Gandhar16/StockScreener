@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -11,11 +12,11 @@ def save_to_csv(df: pd.DataFrame, filepath: str) -> None:
     try:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         clean_df = df.copy()
-        
+
         # Drop dictionary/list columns to keep CSV clean
         cols_to_drop = [
             "graham_details", "fisher_details", "buffett_details",
-            "business_quality_details", "valuation_details", 
+            "business_quality_details", "valuation_details",
             "financial_risk_details", "growth_details", "capital_allocation_details",
             "strengths", "weaknesses", "risks", "red_flags",
             "support_zones", "resistance_zones", "support_trendlines", "resistance_trendlines", "technical_context",
@@ -25,7 +26,7 @@ def save_to_csv(df: pd.DataFrame, filepath: str) -> None:
         for col in cols_to_drop:
             if col in clean_df.columns:
                 clean_df = clean_df.drop(columns=[col])
-                
+
         clean_df.to_csv(filepath, index=False)
         logger.info(f"Results successfully saved to CSV: {filepath}")
     except Exception as e:
@@ -44,10 +45,10 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
     md.append("")
     md.append("## 🏆 Scan Summary Table")
     md.append("")
-    
+
     # Table headers
     headers = [
-        "Rank", "Ticker", "Sector", "Price ($)", 
+        "Rank", "Ticker", "Sector", "Price ($)",
         "Quality", "Value", "Risk", "Growth", "Cap Alloc", "Total", "Rating", "Technical Context"
     ]
     md.append("| " + " | ".join(headers) + " |")
@@ -57,14 +58,14 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
         ticker = row["ticker"]
         sector = row.get("sector", "General")
         price = f"{row.get('last_price', 0.0):.2f}"
-        
+
         q_score = f"{row.get('business_quality_score', 50.0):.1f}"
         v_score = f"{row.get('valuation_score', 50.0):.1f}"
         r_score = f"{row.get('financial_risk_score', 50.0):.1f}"
         g_score = f"{row.get('growth_score', 50.0):.1f}"
         c_score = f"{row.get('capital_allocation_score', 50.0):.1f}"
         total = f"{row.get('total_score', 0.0):.1f}"
-        
+
         # Determine rating emoji based on the rating bucket
         r_bucket = row.get("rating", "Hold / Neutral")
         if r_bucket == "Strong Buy":
@@ -97,18 +98,18 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
         industry = row.get("industry", "N/A")
         rating = row.get("rating", "Hold / Neutral")
         category = row.get("category", "Average business, fair valuation")
-        
+
         md.append(f"### 📈 {ticker} ({sector} - {industry})")
         md.append("")
         md.append(f"- **Current Price:** ${row.get('last_price', 0.0):.2f}")
         md.append(f"- **Final Score:** **{row.get('total_score', 0.0):.1f}/100**")
         md.append(f"- **Rating Recommendation:** **{rating}** ({category})")
-        
+
         tech_context = row.get("technical_context", "N/A")
         md.append(f"- **Technical Context:** **{tech_context}**")
         md.append("")
         md.append("#### 🗺️ Market Structure & Horizontal Levels")
-        
+
         supports = row.get("support_zones", [])
         if supports:
             md.append("- **Horizontal Support Zones (Top 3):**")
@@ -116,7 +117,7 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
                 md.append(f"  - Price Range: ${s['zone'][0]:.2f} - ${s['zone'][1]:.2f} (Touches: {s['touch_count']}, Recency: {s['recency']} days, Score: {s['strength_score']:.1f})")
         else:
             md.append("- **Horizontal Support Zones:** None detected")
-            
+
         resistances = row.get("resistance_zones", [])
         if resistances:
             md.append("- **Horizontal Resistance Zones (Top 3):**")
@@ -133,7 +134,7 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
                 md.append(f"  - Long-term: y = {st['slope']:.4f} * x + {st['intercept']:.2f} (Current Value: ${st['current_value']:.2f}, Touches: {st['touch_count']}, Score: {st['strength_score']:.1f})")
             for st in st_s[:2]:
                 md.append(f"  - Short-term: y = {st['slope']:.4f} * x + {st['intercept']:.2f} (Current Value: ${st['current_value']:.2f}, Touches: {st['touch_count']}, Score: {st['strength_score']:.1f})")
-                
+
         lt_r = row.get("long_term_resistance_trendlines", [])
         st_r = row.get("short_term_resistance_trendlines", [])
         if lt_r or st_r:
@@ -143,7 +144,7 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
             for rt in st_r[:2]:
                 md.append(f"  - Short-term: y = {rt['slope']:.4f} * x + {rt['intercept']:.2f} (Current Value: ${rt['current_value']:.2f}, Touches: {rt['touch_count']}, Score: {rt['strength_score']:.1f})")
         md.append("")
-        
+
         # Sub-scores summary table
         md.append("#### 📊 Factor Scores Breakdown")
         md.append("| Quality | Valuation | Financial Risk | Growth | Capital Allocation |")
@@ -159,7 +160,7 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
             md.append(f"- {strength}")
         if not row.get("strengths"):
             md.append("- No major strengths noted.")
-            
+
         md.append("")
         md.append("**Weaknesses / Risks:**")
         for weakness in row.get("weaknesses", []):
@@ -177,7 +178,7 @@ def generate_markdown_report(df: pd.DataFrame, mode: str) -> str:
         md.append(f"- P/E Ratio: {row.get('pe_ratio', 0.0):.2f}")
         md.append(f"- ROIC: {row.get('roic_3y', 0.0)*100:.2f}%")
         md.append(f"- Operating Margin: {row.get('operating_margin', 0.0)*100:.2f}%")
-        
+
         md.append("")
         md.append("---")
         md.append("")
@@ -209,17 +210,17 @@ def save_buys_to_excel(df: pd.DataFrame, filepath: str) -> None:
             return
 
         buy_df = df[df["rating"].isin(["Buy", "Strong Buy"])].copy()
-        
+
         if buy_df.empty:
             logger.info("No 'Buy' or 'Strong Buy' recommendations to save to Excel.")
             empty_df = pd.DataFrame({"Message": ["No 'Buy' or 'Strong Buy' recommendations found in this scan."]})
             empty_df.to_excel(filepath, index=False, engine='openpyxl')
             return
-            
+
         # Drop detail columns to keep the spreadsheet clean
         cols_to_drop = [
             "graham_details", "fisher_details", "buffett_details",
-            "business_quality_details", "valuation_details", 
+            "business_quality_details", "valuation_details",
             "financial_risk_details", "growth_details", "capital_allocation_details",
             "strengths", "weaknesses", "risks", "red_flags",
             "support_zones", "resistance_zones", "support_trendlines", "resistance_trendlines", "technical_context",
@@ -229,7 +230,7 @@ def save_buys_to_excel(df: pd.DataFrame, filepath: str) -> None:
         for col in cols_to_drop:
             if col in buy_df.columns:
                 buy_df = buy_df.drop(columns=[col])
-                
+
         buy_df.to_excel(filepath, index=False, engine='openpyxl')
         logger.info(f"Buy recommendations successfully saved to Excel: {filepath}")
     except Exception as e:

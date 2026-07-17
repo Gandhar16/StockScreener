@@ -1,7 +1,8 @@
 import logging
+
 import pandas as pd
 import yfinance as yf
-from typing import List, Optional
+
 from stock_scanner.config import ScannerConfig
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ class DataProvider:
     def __init__(self, config: ScannerConfig):
         self.config = config
 
-    def get_default_tickers(self) -> List[str]:
+    def get_default_tickers(self) -> list[str]:
         """
         Returns a curated default set of major US stocks if no tickers are configured.
         """
@@ -26,7 +27,7 @@ class DataProvider:
             "MA", "LLY", "AVGO", "ABBV", "COST", "MRK", "ADBE", "CRM"
         ]
 
-    def fetch_and_filter_prices(self, tickers: List[str]) -> pd.DataFrame:
+    def fetch_and_filter_prices(self, tickers: list[str]) -> pd.DataFrame:
         """
         Downloads the last 5 days of price and volume data in bulk,
         calculates last close and 5-day average volume, and applies price & volume filters.
@@ -109,7 +110,7 @@ class DataProvider:
         try:
             yf_ticker = yf.Ticker(ticker)
             info = yf_ticker.info or {}
-            
+
             # Extract available fundamental metrics
             metrics = {
                 "current_ratio_ttm": info.get("currentRatio"),
@@ -128,8 +129,6 @@ class DataProvider:
                 "gross_margin_ttm": info.get("grossMargins"),
                 "fcf_to_net_income_ttm": info.get("freeCashflow", 0) / max(info.get("netIncomeToCommon", 1), 1) if info.get("freeCashflow") and info.get("netIncomeToCommon") else None,
                 "dividend_yield": info.get("dividendYield"),
-                "price_to_book": info.get("priceToBook"),
-                "ev_to_ebitda": info.get("enterpriseToEbitda"),
                 "price_to_sales": info.get("priceToSalesTrailing12Months"),
                 "price_to_fcf": info.get("marketCap", 0) / max(info.get("freeCashflow", 1), 1) if info.get("freeCashflow") else None,
                 "market_cap": info.get("marketCap"),
@@ -139,21 +138,18 @@ class DataProvider:
                 "capex_ttm": info.get("capitalExpenditures"),
                 "assets_ttm": info.get("totalAssets"),
                 "liabilities_ttm": info.get("totalLiabilities"),
-                "net_income_3y_avg": info.get("netIncomeToCommon"),  # yfinance doesn't provide 3y avg directly
-                "eps_growth_ttm": info.get("earningsGrowth"),
-                "revenue_growth_ttm": info.get("revenueGrowth"),
+                "net_income_3y_avg": info.get("netIncomeToCommon"),
                 "eps_ttm": info.get("trailingEps"),
                 "forward_eps": info.get("forwardEps"),
-                "peg_ratio": info.get("pegRatio"),
             }
-            
+
             # Remove None values
             return {k: v for k, v in metrics.items() if v is not None and not (isinstance(v, float) and math.isnan(v))}
         except Exception as e:
             logger.warning(f"Failed to fetch fundamental data for {ticker}: {e}")
             return {}
 
-    def get_default_tickers(self) -> List[str]:
+    def get_default_tickers(self) -> list[str]:
         """Default S&P 500 major tickers."""
         return [
             "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",

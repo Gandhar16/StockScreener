@@ -25,38 +25,50 @@ Usage:
     python scan_and_alert.py --show-universe       # print current strong universe and exit
 """
 
-import os, sys, json, math, time, argparse, logging
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+import argparse
+import json
+import logging
+import math
+import os
+import sys
+import time
+from datetime import datetime
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-import numpy as np
 import pandas as pd
-import yfinance as yf
 import requests
+import yfinance as yf
 
-from stock_scanner.config import load_config_from_file
-from stock_scanner.engine.fundamental import FundamentalEngine
-from stock_scanner.engine.technical import MarketStructureEngine
-from stock_scanner.engine.patterns import PatternFinder
-from stock_scanner.engine.sentiment import SentimentEngine
-from stock_scanner.engine.indicators import compute_indicators
-from stock_scanner.engine.trade_quality import enrich_trade_signal
-from stock_scanner.engine.relative_strength import rs_percentile, benchmark_for
-from visualize_technical import (compute_entry_signals, annotate_at_levels,
-                                  select_zones, select_trendlines,
-                                  find_fib_pivots, find_fib_pivots_bearish)
 # Reuse helpers from generate_calls
 from generate_calls import (
-    graham_number, get_yf_fundamentals, fair_value_estimate,
-    compute_fib_targets, compute_fib_targets_bearish,
-    swing_conviction, lt_conviction, sentiment_adjust,
-    currency_sym, fmt, WEAK_PATTERNS, MIN_RR
+    MIN_RR,
+    WEAK_PATTERNS,
+    compute_fib_targets,
+    compute_fib_targets_bearish,
+    fair_value_estimate,
+    get_yf_fundamentals,
+    sentiment_adjust,
+    swing_conviction,
 )
+
 # Smart money helpers
-from smart_money import fetch_insider_data, fetch_hf_data
+from smart_money import fetch_hf_data, fetch_insider_data
+from stock_scanner.config import load_config_from_file
+from stock_scanner.engine.fundamental import FundamentalEngine
+from stock_scanner.engine.indicators import compute_indicators
+from stock_scanner.engine.patterns import PatternFinder
+from stock_scanner.engine.relative_strength import benchmark_for, rs_percentile
+from stock_scanner.engine.sentiment import SentimentEngine
+from stock_scanner.engine.technical import MarketStructureEngine
+from stock_scanner.engine.trade_quality import enrich_trade_signal
+from visualize_technical import (
+    annotate_at_levels,
+    compute_entry_signals,
+    select_trendlines,
+    select_zones,
+)
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("scan_alert")
@@ -94,12 +106,12 @@ SP500_FALLBACK = [
 ]
 
 
-def get_sp500_tickers() -> List[str]:
+def get_sp500_tickers() -> list[str]:
     """Fetch S&P 500 tickers from Wikipedia. Falls back to curated list on failure."""
     try:
-        print("  Loading S&P 500 tickers from Wikipedia ...", end=" ", flush=True)
-        import requests
         from io import StringIO
+
+        import requests
         resp = requests.get(
             "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
@@ -110,16 +122,14 @@ def get_sp500_tickers() -> List[str]:
         tickers = tables[0]["Symbol"].tolist()
         # Clean: BRK.B -> BRK-B, etc.
         tickers = [t.replace(".", "-") for t in tickers if isinstance(t, str)]
-        print(f"OK ({len(tickers)} tickers)")
         return sorted(set(tickers))
-    except Exception as e:
-        print(f"FAILED ({e}), using curated fallback list ({len(SP500_FALLBACK)} tickers)")
+    except Exception:
         return sorted(set(SP500_FALLBACK))
 
 
 # ── Fundamental universe — 30-day per-ticker cache ────────────────────────────
 
-def load_universe() -> Dict[str, Dict]:
+def load_universe() -> dict[str, dict]:
     """Load the fund_universe.json file. Returns {} if it doesn't exist yet."""
     if os.path.exists(FUND_UNIVERSE_PATH):
         with open(FUND_UNIVERSE_PATH, encoding="utf-8") as f:
@@ -127,13 +137,13 @@ def load_universe() -> Dict[str, Dict]:
     return {}
 
 
-def save_universe(universe: Dict):
+def save_universe(universe: dict):
     os.makedirs("reports", exist_ok=True)
     with open(FUND_UNIVERSE_PATH, "w", encoding="utf-8") as f:
         json.dump(universe, f, indent=2, default=str)
 
 
-def ticker_needs_rescore(entry: Dict) -> bool:
+def ticker_needs_rescore(entry: dict) -> bool:
     """True if the ticker has never been scored or its score is older than FUND_TTL_DAYS."""
     last = entry.get("last_scored")
     if not last:
@@ -145,7 +155,7 @@ def ticker_needs_rescore(entry: Dict) -> bool:
         return True
 
 
-def refresh_fundamentals(tickers_to_screen: List[str], universe: Dict) -> Dict:
+def refresh_fundamentals(tickers_to_screen: list[str], universe: dict) -> dict:
     """
     Run FundamentalEngine on tickers_to_screen and merge results into universe.
     Saves after each chunk so progress isn't lost on crash.
@@ -153,17 +163,15 @@ def refresh_fundamentals(tickers_to_screen: List[str], universe: Dict) -> Dict:
     if not tickers_to_screen:
         return universe
 
-    print(f"\n  Scoring {len(tickers_to_screen)} tickers (fundamentals, ~{len(tickers_to_screen)//10} min) ...")
     config = load_config_from_file("config/scanner_config.yaml")
     engine = FundamentalEngine(config)
 
     chunk_size = 50
-    total_chunks = math.ceil(len(tickers_to_screen) / chunk_size)
+    math.ceil(len(tickers_to_screen) / chunk_size)
     scored = 0
 
     for i in range(0, len(tickers_to_screen), chunk_size):
         chunk = tickers_to_screen[i:i + chunk_size]
-        print(f"  Chunk {i//chunk_size + 1}/{total_chunks}: {chunk[0]}…{chunk[-1]}", end=" ", flush=True)
         try:
             df = engine.analyze_tickers(chunk, as_of_year=None)
             if not df.empty:
@@ -185,9 +193,7 @@ def refresh_fundamentals(tickers_to_screen: List[str], universe: Dict) -> Dict:
                         "operating_margin":  row.get("operating_margin"),
                     }
                     scored += 1
-            print(f"OK (+{min(len(chunk), scored)} scored)")
         except Exception as e:
-            print(f"FAILED ({e})")
             logger.warning(f"Fundamental chunk failed: {e}")
 
         # Save after every chunk so a crash doesn't lose progress
@@ -196,31 +202,24 @@ def refresh_fundamentals(tickers_to_screen: List[str], universe: Dict) -> Dict:
     return universe
 
 
-def get_strong_universe(universe: Dict) -> List[str]:
+def get_strong_universe(universe: dict) -> list[str]:
     """Return tickers that passed the fundamental screen (score ≥ MIN_FUND_SCORE)."""
     return [t for t, d in universe.items() if d.get("passes", False)]
 
 
-def print_universe_status(universe: Dict):
+def print_universe_status(universe: dict):
     strong = get_strong_universe(universe)
-    weak   = [t for t, d in universe.items() if not d.get("passes", False)]
+    [t for t, d in universe.items() if not d.get("passes", False)]
     now    = datetime.now()
-    stale  = [t for t, d in universe.items() if ticker_needs_rescore(d)]
+    [t for t, d in universe.items() if ticker_needs_rescore(d)]
 
-    print(f"\n{'='*60}")
-    print(f"  FUNDAMENTAL UNIVERSE STATUS")
-    print(f"  Total scored: {len(universe)}  |  Strong: {len(strong)}  |  Weak/Avoid: {len(weak)}")
-    print(f"  Stale (needs re-score in next run): {len(stale)}")
-    print(f"\n  Strong universe ({len(strong)} tickers):")
     rows = sorted([(t, universe[t]["score"]) for t in strong], key=lambda x: -x[1])
-    for t, sc in rows:
+    for t, _sc in rows:
         d   = universe[t]
-        age = (now - datetime.fromisoformat(str(d["last_scored"]))).days
-        print(f"    {t:<8} score={sc:.0f}  rating={d['rating'][:20]:<20}  scored {age}d ago")
-    print(f"{'='*60}\n")
+        (now - datetime.fromisoformat(str(d["last_scored"]))).days
 
 
-def update_universe(all_tickers: List[str], force: bool = False) -> Dict:
+def update_universe(all_tickers: list[str], force: bool = False) -> dict:
     """
     Load universe, identify tickers that need re-scoring, run FundamentalEngine on them.
     Returns the updated universe dict.
@@ -229,7 +228,6 @@ def update_universe(all_tickers: List[str], force: bool = False) -> Dict:
 
     if force:
         tickers_to_screen = all_tickers
-        print(f"  Force refresh: re-screening all {len(all_tickers)} tickers")
     else:
         # Tickers never scored OR whose 30-day window has expired
         tickers_to_screen = [
@@ -237,12 +235,11 @@ def update_universe(all_tickers: List[str], force: bool = False) -> Dict:
             if t not in universe or ticker_needs_rescore(universe[t])
         ]
 
-        fresh = len(all_tickers) - len(tickers_to_screen)
+        len(all_tickers) - len(tickers_to_screen)
         if tickers_to_screen:
-            print(f"  Fundamental cache: {fresh} tickers fresh (≤{FUND_TTL_DAYS}d old), "
-                  f"{len(tickers_to_screen)} need re-scoring")
+            pass
         else:
-            print(f"  Fundamental cache: all {fresh} tickers fresh — skipping re-screen ✓")
+            pass
 
     universe = refresh_fundamentals(tickers_to_screen, universe)
     return universe
@@ -250,7 +247,7 @@ def update_universe(all_tickers: List[str], force: bool = False) -> Dict:
 
 # ── Technical scan ─────────────────────────────────────────────────────────────
 
-def run_technicals(ticker: str, period: str = "2y") -> Tuple[Optional[Dict], Optional[Dict], List, Dict, Dict]:
+def run_technicals(ticker: str, period: str = "2y") -> tuple[dict | None, dict | None, list, dict, dict]:
     """Returns (best_bull, best_bear, all_patterns, structure_result, indicators)."""
     try:
         raw = yf.download(ticker, period=period, auto_adjust=True, progress=False)
@@ -364,7 +361,7 @@ def run_technicals(ticker: str, period: str = "2y") -> Tuple[Optional[Dict], Opt
 
 TG_API = "https://api.telegram.org/bot{token}/{method}"
 
-def load_tg_config() -> Optional[Dict]:
+def load_tg_config() -> dict | None:
     if not os.path.exists("config/telegram.json"):
         return None
     with open("config/telegram.json") as f:
@@ -439,14 +436,14 @@ def build_call_message(
     ticker: str,
     call_type: str,
     conviction: str,
-    yf_d: Dict,
-    fund_row: Optional[Dict],
-    sig: Dict,
-    fv: Dict,
-    sent: Dict,
-    insider: Dict,
-    hf: Dict,
-    indic: Dict = None,
+    yf_d: dict,
+    fund_row: dict | None,
+    sig: dict,
+    fv: dict,
+    sent: dict,
+    insider: dict,
+    hf: dict,
+    indic: dict | None = None,
 ) -> str:
     cur      = yf_d.get("currency", "USD")
     name     = esc((yf_d.get("name") or ticker)[:32])
@@ -560,7 +557,7 @@ def build_call_message(
     ]
 
     # ══ BUSINESS QUALITY ══════════════════════════════════════════════════════
-    lines += ["", f"━━ 📊 <b>BUSINESS QUALITY</b> ━━"]
+    lines += ["", "━━ 📊 <b>BUSINESS QUALITY</b> ━━"]
 
     if score:
         lines.append(f"Score    <code>{bar(score)}</code>  <b>{score:.0f}/100</b>  {rating}")
@@ -713,7 +710,7 @@ def build_call_message(
     macd_hi_v  = indic.get("macd_hist", 0) if indic else 0
     bull_x     = indic.get("macd_bull_cross", False) if indic else False
     bear_x     = indic.get("macd_bear_cross", False) if indic else False
-    ma200_v    = indic.get("ma200") if indic else None
+    indic.get("ma200") if indic else None
 
     rsi_label  = f"RSI {rsi_v:.0f}  {'🔴 overbought' if rsi_v>70 else '🟢 oversold' if rsi_v<30 else '⚪ neutral'}"
     trend_label = ("🟢 Above 200MA" if above_200 else "🔴 Below 200MA" if above_200 is False else "—")
@@ -749,7 +746,7 @@ def build_call_message(
     return "\n".join(l for l in lines if l != "")
 
 
-def build_scan_summary(confirmed: List[Dict], total_scanned: int, duration_s: float) -> str:
+def build_scan_summary(confirmed: list[dict], total_scanned: int, duration_s: float) -> str:
     now   = datetime.now()
     buys  = [c for c in confirmed if c["call_type"] == "BUY"]
     sells = [c for c in confirmed if c["call_type"] == "SELL"]
@@ -814,13 +811,13 @@ def build_scan_summary(confirmed: List[Dict], total_scanned: int, duration_s: fl
 # ── Main scan ─────────────────────────────────────────────────────────────────
 
 def scan_and_alert(
-    all_tickers: List[str],
+    all_tickers: list[str],
     period: str = "2y",
     force_refund: bool = False,
     send_telegram: bool = True,
     min_conviction: str = "CONFIRMED",
     run_sentiment: bool = True,
-) -> List[Dict]:
+) -> list[dict]:
 
     if min_conviction == "HIGH CONVICTION":
         allowed = {"HIGH CONVICTION"}
@@ -832,36 +829,31 @@ def scan_and_alert(
     t0 = time.time()
     tg = load_tg_config() if send_telegram else None
     if send_telegram and not tg:
-        print("  [WARN] No config/telegram.json — run python telegram_notifier.py --setup")
-        print("         Continuing without Telegram.")
+        pass
 
     # ── Step 1: Fundamental universe (30-day per-ticker cache) ────────────────
-    print(f"\n[1/4] Fundamental universe ({len(all_tickers)} tickers, {FUND_TTL_DAYS}-day cache)")
     universe  = update_universe(all_tickers, force=force_refund)
     passing   = get_strong_universe(universe)
-    weak_cnt  = len(universe) - len(passing)
-    print(f"  Strong universe: {len(passing)} tickers pass  |  {weak_cnt} skipped (weak/avoid)")
+    len(universe) - len(passing)
 
     # 2. Sentiment (batch, for passing tickers only)
-    sentiment_data: Dict[str, Dict] = {}
+    sentiment_data: dict[str, dict] = {}
     if run_sentiment:
-        print(f"\n[2/4] News sentiment ({len(passing)} tickers) ...")
         try:
             sent_engine = SentimentEngine()
             sentiment_data = sent_engine.analyze_batch(passing)
-        except Exception as e:
-            print(f"  [WARN] Sentiment skipped: {e}")
+        except Exception:
+            pass
 
     # 3. Technical scan
-    print(f"\n[3/4] Technical scan ({len(passing)} tickers) ...")
-    confirmed: List[Dict] = []
+    confirmed: list[dict] = []
     total_with_signal = 0
 
     for i, ticker in enumerate(passing, 1):
         sys.stdout.write(f"\r  [{i:>3}/{len(passing)}] {ticker:<12} ", )
         sys.stdout.flush()
 
-        best_bull, best_bear, patterns, struct, indic = run_technicals(ticker, period)
+        best_bull, best_bear, _patterns, _struct, indic = run_technicals(ticker, period)
         has_signal = bool(best_bull or best_bear)
         if has_signal:
             total_with_signal += 1
@@ -963,7 +955,6 @@ def scan_and_alert(
                 "_indic":    indic,
             })
 
-    print(f"\n  Done. {total_with_signal} tickers had a signal, {len(confirmed)} passed conviction filter.")
 
     # ── RS percentile post-pass (IBD-style 1-99, per benchmark group) ─────────
     if confirmed:
@@ -979,7 +970,6 @@ def scan_and_alert(
         confirmed.sort(key=lambda c: -(c.get("setup_score") or 0))
 
     if not confirmed:
-        print("  No confirmed calls found. Try --min-conviction SETUP to widen the filter.")
         if tg:
             tg_send(tg["token"], tg["chat_id"],
                     f"🔍 <b>StockCalls Scan Complete</b>\n"
@@ -988,17 +978,14 @@ def scan_and_alert(
         return []
 
     duration = time.time() - t0
-    print(f"\n  Total scan time: {duration/60:.1f} min")
 
     # Build summary + send
     if tg:
-        print(f"\n[4/4] Sending {len(confirmed)} call reports to Telegram ...")
         summary = build_scan_summary(confirmed, len(passing), duration)
         tg_send_long(tg["token"], tg["chat_id"], summary)
         time.sleep(1)
 
         for i, c in enumerate(confirmed, 1):
-            print(f"  [{i}/{len(confirmed)}] {c['ticker']} {c['call_type']} {c['conviction']}")
             msg = build_call_message(
                 ticker    = c["ticker"],
                 call_type = c["call_type"],
@@ -1041,7 +1028,6 @@ def scan_and_alert(
     out_path = f"reports/scan_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump({"generated_at": datetime.now().isoformat(), "calls": save_payload}, f, indent=2, default=str)
-    print(f"\n  Saved to {out_path}")
 
     return confirmed
 
@@ -1070,16 +1056,14 @@ def main():
     if args.show_universe:
         universe = load_universe()
         if not universe:
-            print("No universe cached yet. Run python scan_and_alert.py first.")
+            pass
         else:
             print_universe_status(universe)
         return
 
     if args.tickers:
         all_tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
-        print(f"\nAd-hoc scan: {len(all_tickers)} tickers (conviction ≥ {args.min_conviction})")
     else:
-        print(f"\nDaily scan — S&P 500 universe (conviction ≥ {args.min_conviction})")
         all_tickers = get_sp500_tickers()
 
     scan_and_alert(

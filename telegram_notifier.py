@@ -15,9 +15,13 @@ Usage:
   python telegram_notifier.py --test            # send a test ping
 """
 
-import os, sys, json, math, argparse, time
+import argparse
+import json
+import math
+import os
+import sys
+import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -33,25 +37,22 @@ MAX_MSG_LEN = 4000   # Telegram limit is 4096; keep below to be safe
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-def load_config() -> Dict:
+def load_config() -> dict:
     if not os.path.exists(CONFIG_PATH):
-        print(f"[ERROR] No config found at {CONFIG_PATH}")
-        print("Run:  python telegram_notifier.py --setup")
         sys.exit(1)
     with open(CONFIG_PATH) as f:
         return json.load(f)
 
 
-def save_config(cfg: Dict):
+def save_config(cfg: dict):
     os.makedirs("config", exist_ok=True)
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
-    print(f"Config saved to {CONFIG_PATH}")
 
 
 # ── Telegram API ───────────────────────────────────────────────────────────────
 
-def tg_request(token: str, method: str, payload: Dict) -> Dict:
+def tg_request(token: str, method: str, payload: dict) -> dict:
     url = TG_API.format(token=token, method=method)
     r = requests.post(url, json=payload, timeout=15)
     return r.json()
@@ -67,7 +68,7 @@ def send_message(token: str, chat_id: str, text: str,
     })
     ok = result.get("ok", False)
     if not ok:
-        print(f"  [WARN] Telegram error: {result.get('description','unknown')}")
+        pass
     return ok
 
 
@@ -97,40 +98,25 @@ def send_long(token: str, chat_id: str, text: str):
 # ── Setup wizard ───────────────────────────────────────────────────────────────
 
 def run_setup():
-    print("\n=== Telegram Bot Setup ===\n")
-    print("Step 1: Create your bot")
-    print("  - Open Telegram → search @BotFather")
-    print("  - Send:  /newbot")
-    print("  - Choose a name (e.g. 'StockCalls Bot') and a username (e.g. 'stockcalls_myname_bot')")
-    print("  - BotFather will give you a token like: 7123456789:AAFxxxxxxxxxxxxx\n")
 
     token = input("Paste your bot token here: ").strip()
     if not token or ":" not in token:
-        print("[ERROR] Invalid token format. Should look like: 1234567890:AABBB...")
         sys.exit(1)
 
-    print("\nStep 2: Get your Chat ID")
-    print("  - Open Telegram → search for your new bot by the username you just created")
-    print("  - Send it any message (e.g. /start or 'hello')")
-    print("  - Press Enter here once you've done that...")
     input("  Press Enter to continue > ")
 
     # Fetch updates to find the chat ID
-    print("\n  Fetching chat ID from Telegram ...")
     result = tg_request(token, "getUpdates", {})
     updates = result.get("result", [])
 
     if not updates:
-        print("  [WARN] No messages found. Make sure you sent a message to your bot first.")
         chat_id = input("  Enter your chat ID manually (or press Enter to retry): ").strip()
         if not chat_id:
-            print("  No chat ID — aborting.")
             sys.exit(1)
     else:
         msg = updates[-1]["message"]
         chat_id = str(msg["chat"]["id"])
-        chat_name = msg["chat"].get("first_name") or msg["chat"].get("title") or "your chat"
-        print(f"  Found chat: {chat_name} (ID: {chat_id})")
+        msg["chat"].get("first_name") or msg["chat"].get("title") or "your chat"
 
     # Optional: group/channel override
     override = input(f"\n  Use chat ID {chat_id}? (Enter to confirm, or type a different chat ID): ").strip()
@@ -142,12 +128,11 @@ def run_setup():
     save_config(cfg)
 
     # Send test message
-    print("\n  Sending test message ...")
     ok = send_message(token, chat_id, "✅ <b>StockCalls Bot connected!</b>\n\nYou'll receive equity call alerts here.")
     if ok:
-        print("  Test message sent! Check your Telegram.\n")
+        pass
     else:
-        print("  [WARN] Test message failed — double-check your token and chat ID.\n")
+        pass
 
 
 # ── Formatting ─────────────────────────────────────────────────────────────────
@@ -170,10 +155,10 @@ def conviction_icon(conv: str) -> str:
 
 
 def sentiment_icon(label: str) -> str:
-    return {"BULLISH": "📈", "BEARISH": "📉", "NEUTRAL": "➖"}.get(label, "➖")
+    return {"BULLISH": "📈", "BEARISH": "📉", "NEUTRAL": "-"}.get(label, "-")
 
 
-def fmt_price(val: Optional[float], currency: str = "USD") -> str:
+def fmt_price(val: float | None, currency: str = "USD") -> str:
     if val is None or (isinstance(val, float) and math.isnan(val)):
         return "—"
     sym = {"USD": "$", "INR": "₹", "GBP": "£", "EUR": "€"}.get(currency, "$")
@@ -184,7 +169,7 @@ def fmt_price(val: Optional[float], currency: str = "USD") -> str:
     return f"{sym}{val:,.2f}"
 
 
-def fmt_pct(val: Optional[float]) -> str:
+def fmt_pct(val: float | None) -> str:
     if val is None:
         return "—"
     return f"{val*100:+.1f}%"
@@ -192,7 +177,7 @@ def fmt_pct(val: Optional[float]) -> str:
 
 # ── Message builders ──────────────────────────────────────────────────────────
 
-def build_header(calls: Dict) -> str:
+def build_header(calls: dict) -> str:
     now  = calls.get("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M"))
     lt   = calls.get("long_term_calls", [])
     sw   = calls.get("swing_calls", [])
@@ -218,7 +203,7 @@ def build_header(calls: Dict) -> str:
     return "\n".join(lines)
 
 
-def build_lt_section(calls: List[Dict]) -> str:
+def build_lt_section(calls: list[dict]) -> str:
     if not calls:
         return ""
     lines = ["", "🏦 <b>LONG-TERM CALLS</b>"]
@@ -243,7 +228,7 @@ def build_lt_section(calls: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def build_swing_section(calls: List[Dict]) -> str:
+def build_swing_section(calls: list[dict]) -> str:
     if not calls:
         return ""
     lines = ["", "⚡ <b>SWING CALLS</b>"]
@@ -269,7 +254,7 @@ def build_swing_section(calls: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def build_sell_section(calls: List[Dict]) -> str:
+def build_sell_section(calls: list[dict]) -> str:
     if not calls:
         return ""
     lines = ["", "🔴 <b>SELL / SHORT CALLS</b>"]
@@ -294,7 +279,7 @@ def build_sell_section(calls: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def build_smart_money_section(sm_data: Dict, tickers: List[str]) -> str:
+def build_smart_money_section(sm_data: dict, tickers: list[str]) -> str:
     if not sm_data:
         return ""
     lines = ["", "🧠 <b>SMART MONEY</b>"]
@@ -308,8 +293,8 @@ def build_smart_money_section(sm_data: Dict, tickers: List[str]) -> str:
         news_lbl = d["news"].get("sentiment_label", "NEUTRAL")
 
         overall_icon = {"BULLISH": "🟢", "BEARISH": "🔴", "MIXED": "🟡", "NEUTRAL": "⚪"}.get(overall, "⚪")
-        ins_icon     = {"BUYING": "⬆️", "SELLING": "⬇️", "MIXED": "↔️", "NEUTRAL": "➖"}.get(ins_sig, "➖")
-        hf_icon      = {"INCREASING": "⬆️", "DECREASING": "⬇️", "STABLE": "➖"}.get(hf_sig, "➖")
+        ins_icon     = {"BUYING": "⬆️", "SELLING": "⬇️", "MIXED": "↔️", "NEUTRAL": "-"}.get(ins_sig, "-")
+        hf_icon      = {"INCREASING": "⬆️", "DECREASING": "⬇️", "STABLE": "-"}.get(hf_sig, "-")
 
         lines.append(f"  {overall_icon} <b>{esc(ticker)}</b>  Ins:{ins_icon}{esc(ins_sig)}  HF:{hf_icon}{esc(hf_sig)}  News:{sentiment_icon(news_lbl)}")
 
@@ -330,7 +315,6 @@ def send_calls(include_smart_money: bool = False):
     chat_id = cfg["chat_id"]
 
     if not os.path.exists(CALLS_PATH):
-        print(f"[ERROR] {CALLS_PATH} not found. Run python generate_calls.py first.")
         sys.exit(1)
 
     with open(CALLS_PATH, encoding="utf-8") as f:
@@ -354,7 +338,6 @@ def send_calls(include_smart_money: bool = False):
     sl_block  = build_sell_section(sl)
     sm_block  = build_smart_money_section(sm_data, all_tickers) if include_smart_money else ""
 
-    print(f"  Sending to Telegram (chat: {chat_id}) ...")
 
     # Message 1: header + long-term
     msg1 = header + (lt_block or "\n\n🏦 <b>LONG-TERM</b>\n  No calls generated.")
@@ -375,16 +358,14 @@ def send_calls(include_smart_money: bool = False):
     if sm_block:
         send_long(token, chat_id, sm_block)
 
-    print("  Done! Check your Telegram.")
 
 
-def send_test(token: str = None, chat_id: str = None):
+def send_test(token: str | None = None, chat_id: str | None = None):
     if not token:
         cfg = load_config()
         token, chat_id = cfg["token"], cfg["chat_id"]
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ok = send_message(token, chat_id, f"🤖 <b>StockCalls ping</b>\n{now}\n\nBot is alive ✅")
-    print("Test sent!" if ok else "Test FAILED — check token/chat_id")
+    send_message(token, chat_id, f"🤖 <b>StockCalls ping</b>\n{now}\n\nBot is alive ✅")
 
 
 # ── Entry ──────────────────────────────────────────────────────────────────────

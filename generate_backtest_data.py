@@ -1,9 +1,10 @@
-import os
 import json
 import logging
+import os
+
 import pandas as pd
 import yfinance as yf
-from typing import List, Dict, Any
+
 from stock_scanner.config import load_config_from_file
 from stock_scanner.engine.fundamental import FundamentalEngine
 
@@ -23,7 +24,7 @@ def run_simulation():
     # Phase 1: 2023-06-15 to 2024-06-15 (as_of_year = 2022)
     # Phase 2: 2024-06-15 to 2025-06-15 (as_of_year = 2023)
     # Phase 3: 2025-06-15 to 2026-06-15 (as_of_year = 2024)
-    
+
     phases = [
         {"start": "2023-06-15", "end": "2024-06-15", "as_of": 2022},
         {"start": "2024-06-15", "end": "2025-06-15", "as_of": 2023},
@@ -31,16 +32,16 @@ def run_simulation():
     ]
 
     tickers = [
-        "AAPL", "MSFT", "GOOGL", "NVDA", "AVGO", "CSCO", 
-        "AMZN", "TSLA", "HD", "META", "NFLX", 
-        "JPM", "BAC", "V", 
-        "JNJ", "LLY", "UNH", 
+        "AAPL", "MSFT", "GOOGL", "NVDA", "AVGO", "CSCO",
+        "AMZN", "TSLA", "HD", "META", "NFLX",
+        "JPM", "BAC", "V",
+        "JNJ", "LLY", "UNH",
         "WMT", "PG", "KO"
     ]
     logger.info(f"Starting portfolio simulation for 20 tickers: {tickers}")
 
     # Download daily history for all tickers + S&P 500 benchmark
-    all_symbols = list(set(tickers + ["^GSPC"]))
+    all_symbols = list({*tickers, "^GSPC"})
     start_date = "2023-06-10"
     end_date = "2026-06-20"
     logger.info(f"Downloading daily prices from {start_date} to {end_date}...")
@@ -56,7 +57,7 @@ def run_simulation():
             price_df = price_df["Adj Close"]
         else:
             price_df = price_df["Close"]
-    
+
     # Fill missing values
     price_df = price_df.ffill().bfill()
 
@@ -95,7 +96,7 @@ def run_simulation():
         trading_days = price_df.loc[p_start:p_end].index
         if len(trading_days) == 0:
             continue
-        
+
         phase_start_day = trading_days[0]
         phase_end_day = trading_days[-1]
 
@@ -123,7 +124,7 @@ def run_simulation():
             for ticker, info in holdings.items():
                 current_price = float(price_df.loc[day, ticker])
                 port_val += info["shares"] * current_price
-            
+
             # Benchmark value calculation
             bench_val = benchmark_shares * float(price_df.loc[day, "^GSPC"])
 
@@ -154,7 +155,7 @@ def run_simulation():
                 "profit_loss_pct": profit_loss_pct,
                 "status": "WIN" if profit_loss > 0 else "LOSS"
             })
-        
+
         current_cash = next_cash
 
     # 4. Calculate Drawdowns
@@ -186,7 +187,7 @@ def run_simulation():
     os.makedirs("dashboard", exist_ok=True)
     with open("dashboard/data.json", "w") as f:
         json.dump(output_data, f, indent=4)
-        
+
     logger.info("Simulation complete. Saved results to dashboard/data.json.")
 
 if __name__ == "__main__":

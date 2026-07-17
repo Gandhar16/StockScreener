@@ -1,13 +1,14 @@
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import Any
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 def check_red_flags(
-    metrics: Dict[str, Any], 
+    metrics: dict[str, Any],
     sector: str
-) -> Tuple[bool, float, List[str]]:
+) -> tuple[bool, float, list[str]]:
     """
     Checks for structural, financial, and accounting red flags.
     Returns:
@@ -18,14 +19,14 @@ def check_red_flags(
     is_disqualified = False
     total_penalty = 0.0
     flags = []
-    
+
     is_financial = "bank" in sector.lower() or "financial" in sector.lower()
-    
+
     # 1. Going Concern Risk (Negative Equity and Negative Operating Cash Flow)
     assets = metrics.get("assets_ttm", 1.0)
     liabilities = metrics.get("liabilities_ttm", 0.0)
     ocf_ttm = metrics.get("ocf_ttm", 1.0)
-    
+
     if not pd.isna(assets) and not pd.isna(liabilities) and assets <= liabilities:
         if is_financial:
             # Financials have unique balance sheets - negative equity is bad, but cash flow check is skipped
@@ -38,7 +39,7 @@ def check_red_flags(
             else:
                 total_penalty += 30.0
                 flags.append("Going Concern warning: Negative Equity (Liabilities exceed Assets)")
-            
+
     # 2. Persistent Negative Operating Cash Flow (Skip for Financials/Banks)
     if not is_financial:
         ocf_3y = metrics.get("ocf_3y_avg", 0.0)
@@ -58,14 +59,14 @@ def check_red_flags(
     else:
         de = metrics.get("debt_to_equity_ttm", 0.0)
         net_debt_ebitda = metrics.get("net_debt_to_ebitda_ttm", 0.0)
-        
+
         if not pd.isna(de) and de > 3.0:
             is_disqualified = True
             flags.append(f"Dangerous Leverage: Debt-to-Equity of {de:.2f} exceeds 3.0")
         elif not pd.isna(de) and de > 2.0:
             total_penalty += 15.0
             flags.append(f"High Leverage: Debt-to-Equity of {de:.2f} exceeds 2.0")
-            
+
         if not pd.isna(net_debt_ebitda) and net_debt_ebitda > 5.0:
             total_penalty += 20.0
             flags.append(f"High Net Debt/EBITDA: leverage ratio of {net_debt_ebitda:.2f} exceeds 5.0")

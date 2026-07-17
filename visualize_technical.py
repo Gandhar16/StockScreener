@@ -16,18 +16,22 @@ Usage:
     python visualize_technical.py NVDA 2y
 """
 
+import logging
 import sys
+
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import yfinance as yf
 
-from stock_scanner.engine.technical import MarketStructureEngine
 from stock_scanner.engine.patterns import PatternFinder
+from stock_scanner.engine.technical import MarketStructureEngine
 
+logger = logging.getLogger(__name__)
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
@@ -42,9 +46,9 @@ LEVEL_TOL        = 0.025  # 2.5% — max distance from a key level to count as "
 def draw_candlesticks(ax, df: pd.DataFrame) -> None:
     bull, bear = "#26a69a", "#ef5350"
     for i, (_, row) in enumerate(df.iterrows()):
-        o, h, l, c = float(row["Open"]), float(row["High"]), float(row["Low"]), float(row["Close"])
+        o, h, low, c = float(row["Open"]), float(row["High"]), float(row["Low"]), float(row["Close"])
         col = bull if c >= o else bear
-        ax.plot([i, i], [l, h], color=col, linewidth=0.8, zorder=2)
+        ax.plot([i, i], [low, h], color=col, linewidth=0.8, zorder=2)
         body_lo, body_hi = min(o, c), max(o, c)
         ax.add_patch(mpatches.Rectangle(
             (i - 0.4, body_lo), 0.8, max(body_hi - body_lo, 0.001 * c),
@@ -53,8 +57,8 @@ def draw_candlesticks(ax, df: pd.DataFrame) -> None:
 
 
 def draw_pivot_markers(ax, p_highs: list, p_lows: list,
-                       hl_high_idx: set = None,
-                       hl_low_idx: set = None) -> None:
+                       hl_high_idx: set | None = None,
+                       hl_low_idx: set | None = None) -> None:
     """
     Circles placed exactly at the wick tip (High for swing highs, Low for
     swing lows).  Pivots that anchor a visible trendline get a larger,
@@ -226,7 +230,7 @@ def annotate_at_levels(patterns, vis_sup_zones, vis_res_zones,
 
 
 def compute_entry_signals(patterns: list, df: pd.DataFrame,
-                          indicators: dict = None) -> None:
+                          indicators: dict | None = None) -> None:
     """
     Enrich each pattern dict (in-place) with:
       entry_price, stop_loss, vol_ratio, vol_confirmed, risk_pct, signal,
@@ -241,7 +245,7 @@ def compute_entry_signals(patterns: list, df: pd.DataFrame,
       WATCH               — neutral forming pattern
     """
     try:
-        from stock_scanner.engine.indicators import score_pattern, forming_confidence
+        from stock_scanner.engine.indicators import forming_confidence, score_pattern
         _scoring_available = True
     except ImportError:
         _scoring_available = False
@@ -446,9 +450,9 @@ def draw_patterns(ax, patterns: list, df: pd.DataFrame, price_range: float) -> N
             xy=(bar, y), xycoords="data",
             color=color, fontsize=fs, fontweight="bold",
             va=va, ha="center", zorder=9,
-            bbox=dict(boxstyle="round,pad=0.3", facecolor="#131722",
-                      edgecolor=color, alpha=alpha,
-                      linewidth=edge_lw, linestyle=ls)
+            bbox={"boxstyle": "round,pad=0.3", "facecolor": "#131722",
+                      "edgecolor": color, "alpha": alpha,
+                      "linewidth": edge_lw, "linestyle": ls}
         )
 
 
@@ -673,7 +677,7 @@ def draw_fib_levels(ax, swing_low: float, swing_high: float,
         zone_color = "#ffd54f"
         prefix = "▲"
 
-        for (ratio, label), color in zip(RETRACE_RATIOS, RETRACE_COLORS):
+        for (ratio, label), color in zip(RETRACE_RATIOS, RETRACE_COLORS, strict=True):
             price = swing_high - ratio * move
             ax.axhline(price, color=color, linewidth=0.75,
                        linestyle=ls, alpha=0.45, zorder=2)
@@ -701,7 +705,7 @@ def draw_fib_levels(ax, swing_low: float, swing_high: float,
         zone_color = "#ef5350"
         prefix = "▼"
 
-        for (ratio, label), color in zip(RETRACE_RATIOS, RETRACE_COLORS):
+        for (ratio, label), color in zip(RETRACE_RATIOS, RETRACE_COLORS, strict=True):
             price = swing_low + ratio * move
             ax.axhline(price, color=color, linewidth=0.75,
                        linestyle=ls, alpha=0.45, zorder=2)
@@ -871,22 +875,22 @@ def main():
     ticker = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
     period = sys.argv[2] if len(sys.argv) > 2 else "1y"
 
-    print(f"  Downloading {ticker} ({period}) ...")
+    logger.info(f"  Downloading {ticker} ({period}) ...")
     raw = yf.download(ticker, period=period, auto_adjust=True, progress=False)
     if raw.empty:
-        print("No data returned.")
+        logger.warning("No data returned.")
         return
     if isinstance(raw.columns, pd.MultiIndex):
         raw.columns = raw.columns.get_level_values(0)
     df = raw[["Open", "High", "Low", "Close", "Volume"]].dropna()
-    print(f"  {len(df)} bars  |  {df['Low'].min():.2f} - {df['High'].max():.2f}")
+    logger.info(f"  {len(df)} bars  |  {df['Low'].min():.2f} - {df['High'].max():.2f}")
 
     engine         = MarketStructureEngine(window_size=5, tolerance_pct=0.015)
     pattern_finder = PatternFinder(price_tolerance=0.03, min_pullback=0.03,
                                    recent_candle_bars=15, recent_chart_bars=30)
     current_price  = float(df["Close"].iloc[-1])
 
-    print("  Running full-period analysis ...")
+    logger.info("  Running full-period analysis ...")
     result          = engine.analyze_structure(df)
     p_highs, p_lows = engine._find_pivots(df)
     patterns        = pattern_finder.find_all(df, p_highs, p_lows)
@@ -910,15 +914,15 @@ def main():
     for tl in vis_lt_res + vis_st_res:
         hl_high_idx.update(tl.get("touch_index_list", []))
 
-    print(f"  Context : {result['context']}")
-    print(f"  Visible -> sup zones={len(vis_sup_zones)} res zones={len(vis_res_zones)} | "
+    logger.debug(f"  Context : {result['context']}")
+    logger.debug(f"  Visible -> sup zones={len(vis_sup_zones)} res zones={len(vis_res_zones)} | "
           f"TL: LT sup={len(vis_lt_sup)} LT res={len(vis_lt_res)} "
           f"ST sup={len(vis_st_sup)} ST res={len(vis_st_res)}")
-    print(f"  Pivots  -> highs={len(p_highs)} lows={len(p_lows)} | "
+    logger.debug(f"  Pivots  -> highs={len(p_highs)} lows={len(p_lows)} | "
           f"TL-anchored highs={len(hl_high_idx)} lows={len(hl_low_idx)}")
     if patterns:
-        print(f"\n  {'Pattern':<28s} {'Type':<8s}  {'Signal':<12s} {'Entry':>10s}  {'Stop':>10s}  {'Risk%':>6s}  {'VolR':>5s} {'Date'}")
-        print("  " + "-" * 100)
+        logger.debug(f"\n  {'Pattern':<28s} {'Type':<8s}  {'Signal':<12s} {'Entry':>10s}  {'Stop':>10s}  {'Risk%':>6s}  {'VolR':>5s} {'Date'}")
+        logger.debug("  " + "-" * 100)
         for p in patterns:
             bar_date  = df.index[p["completed_bar"]].date()
             state_tag = " [F]" if p.get("forming") else "    "
@@ -929,10 +933,10 @@ def main():
             risk      = f"{p['risk_pct']:.1f}%"   if p.get("risk_pct")    else "  --"
             vol_r     = f"{p.get('vol_ratio', 0):.2f}x"
             vol_ok    = " [V]" if p.get("vol_confirmed") else ""
-            print(f"  {p['name']:<28s} [{p['type']:<8s}]{state_tag} {sig:<12s} {entry:>10s}  {stop:>10s}  {risk:>6s}  {vol_r}{vol_ok}  {bar_date}{level_tag}")
+            logger.debug(f"  {p['name']:<28s} [{p['type']:<8s}]{state_tag} {sig:<12s} {entry:>10s}  {stop:>10s}  {risk:>6s}  {vol_r}{vol_ok}  {bar_date}{level_tag}")
 
     out = save_chart(ticker, period, df, result, patterns, p_highs, p_lows)
-    print(f"  Chart saved -> {out}")
+    logger.debug(f"  Chart saved -> {out}")
 
 
 if __name__ == "__main__":

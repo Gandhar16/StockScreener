@@ -120,7 +120,8 @@ class TestSetupScore:
     def test_missing_components_renormalized(self):
         res = setup_score(pattern_score=80, rr=2.5)
         assert res["setup_score"] is not None
-        assert "mtf" in res["missing"] and "rs" in res["missing"]
+        assert "mtf" in res["missing"]
+        assert "rs" in res["missing"]
         # score reflects only pattern + rr, both strong
         assert res["setup_score"] >= 70
 

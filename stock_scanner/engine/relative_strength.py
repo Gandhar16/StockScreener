@@ -12,7 +12,6 @@ laggards" filter.
 Missing benchmark data always degrades to pass-through (None), never a fail.
 """
 
-from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -24,10 +23,10 @@ DEFAULT_BENCHMARK_MAP = {
 }
 DEFAULT_BENCHMARK = "^GSPC"  # S&P 500
 
-_benchmark_cache: Dict[str, pd.Series] = {}
+_benchmark_cache: dict[str, pd.Series] = {}
 
 
-def benchmark_for(ticker: str, benchmark_map: Optional[Dict[str, str]] = None) -> str:
+def benchmark_for(ticker: str, benchmark_map: dict[str, str] | None = None) -> str:
     """Map a ticker to its benchmark index symbol by suffix."""
     bmap = benchmark_map or DEFAULT_BENCHMARK_MAP
     for suffix, bench in bmap.items():
@@ -36,7 +35,7 @@ def benchmark_for(ticker: str, benchmark_map: Optional[Dict[str, str]] = None) -
     return DEFAULT_BENCHMARK
 
 
-def fetch_benchmark_history(symbol: str, period: str = "2y") -> Optional[pd.Series]:
+def fetch_benchmark_history(symbol: str, period: str = "2y") -> pd.Series | None:
     """
     Download (and cache for the process lifetime) a benchmark's close series.
     Returns None on any failure — callers treat that as pass-through.
@@ -66,8 +65,8 @@ def clear_benchmark_cache() -> None:
     _benchmark_cache.clear()
 
 
-def mansfield_rs(close: pd.Series, bench_close: Optional[pd.Series],
-                 period: int = 252) -> Dict:
+def mansfield_rs(close: pd.Series, bench_close: pd.Series | None,
+                 period: int = 252) -> dict:
     """
     Mansfield Relative Strength at the latest bar.
 
@@ -126,8 +125,8 @@ def mansfield_rs(close: pd.Series, bench_close: Optional[pd.Series],
     }
 
 
-def rs_gate(direction: str, rs: Dict,
-            soft_floor: float = -5.0, hard_floor: float = -20.0) -> Dict:
+def rs_gate(direction: str, rs: dict,
+            soft_floor: float = -5.0, hard_floor: float = -20.0) -> dict:
     """
     Gate a setup on relative strength.
 
@@ -160,8 +159,8 @@ def rs_gate(direction: str, rs: Dict,
                 "rs_reason": f"RS not weak enough (Mansfield {rs_m:+.1f})"}
 
 
-def rs_percentile(rs_values: Dict[str, Optional[float]],
-                  benchmark_groups: Optional[Dict[str, str]] = None) -> Dict[str, Optional[int]]:
+def rs_percentile(rs_values: dict[str, float | None],
+                  benchmark_groups: dict[str, str] | None = None) -> dict[str, int | None]:
     """
     IBD-style RS rating 1-99 across a scanned universe.
 
@@ -170,14 +169,14 @@ def rs_percentile(rs_values: Dict[str, Optional[float]],
                       within each benchmark group so NSE names are ranked
                       against NSE names. Omit to rank everything together.
     """
-    groups: Dict[str, list] = {}
+    groups: dict[str, list] = {}
     for t, v in rs_values.items():
         if v is None:
             continue
         g = (benchmark_groups or {}).get(t, "ALL")
         groups.setdefault(g, []).append((t, v))
 
-    out: Dict[str, Optional[int]] = {t: None for t in rs_values}
+    out: dict[str, int | None] = dict.fromkeys(rs_values)
     for _, members in groups.items():
         if len(members) < 2:
             for t, _v in members:
@@ -186,5 +185,5 @@ def rs_percentile(rs_values: Dict[str, Optional[float]],
         vals = np.array([v for _, v in members], dtype=float)
         for t, v in members:
             pct = (vals < v).sum() / len(vals)  # strict rank fraction
-            out[t] = int(round(1 + pct * 98))
+            out[t] = round(1 + pct * 98)
     return out
