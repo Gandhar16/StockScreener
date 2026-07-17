@@ -129,10 +129,9 @@ def mock_toolkit():
     
     return mock_tk
 
-@patch("financetoolkit.Toolkit")
 @patch("yfinance.Ticker")
 @pytest.mark.skip(reason="Test assertion issue - RISK ticker appearing unexpectedly")
-def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit_class, mock_toolkit, sample_config):
+def test_fundamental_engine_scoring(mock_yf_ticker, mock_toolkit, sample_config):
     mock_toolkit_class.return_value = mock_toolkit
     
     # Mock yfinance Ticker info for sectors
