@@ -1,6 +1,6 @@
 import math
 import yaml
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any, Tuple
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -90,20 +90,21 @@ class BatchConfig(BaseModel):
 
 class ScoringRangeConfig(BaseModel):
     pe_ratio: List[float] = Field(default_factory=lambda: [8.0, 36.0])
-    current_ratio: List[float] = Field(default_factory=lambda: [1.1, 2.3])
-    debt_to_equity: List[float] = Field(default_factory=lambda: [0.6, 2.6])
+    current_ratio: List[float] = Field(default_factory=lambda: [1.0, 2.5])
+    debt_to_equity: List[float] = Field(default_factory=lambda: [0.5, 2.0])
     revenue_growth_yoy: List[float] = Field(default_factory=lambda: [0.03, 0.21])
-    eps_growth_yoy: List[float] = Field(default_factory=lambda: [-0.05, 0.16])
+    eps_growth_yoy: List[float] = Field(default_factory=lambda: [-0.05, 0.165])
     rd_intensity: List[float] = Field(default_factory=lambda: [0.0, 0.1])
     roic: List[float] = Field(default_factory=lambda: [0.02, 0.29])
     operating_margin: List[float] = Field(default_factory=lambda: [0.07, 0.32])
+    fcf_to_net_income: List[float] = Field(default_factory=lambda: [0.5, 1.5])
 
 
 class TechnicalConfig(BaseModel):
     history_period: str = Field(default="2y", description="Historical period for technical analysis")
     
     class MTFConfig(BaseModel):
-        aligned_threshold: int = Field(default=55, description="Weekly alignment score needed")
+        aligned_threshold: int = Field(default=55, description="Weekly alignment score needed to count as aligned")
     
     class RSConfig(BaseModel):
         benchmark_map: dict = Field(default_factory=lambda: {
@@ -111,7 +112,7 @@ class TechnicalConfig(BaseModel):
             ".BO": "^BSESN",
         })
         default_benchmark: str = Field(default="^GSPC")
-        soft_floor: float = Field(default=-5.0, description="Bull setups need Mansfield RS above this")
+        soft_floor: float = Field(default=-5.0, description="Bull setups need Mansfield RS above this (or improving)")
         hard_floor: float = Field(default=-20.0, description="Below this = severe laggard, hard reject")
     
     class GatesConfig(BaseModel):
@@ -148,7 +149,9 @@ class FundamentalExtrasConfig(BaseModel):
 class SectorProfileConfig(BaseModel):
     filters: FilterConfig = Field(default_factory=FilterConfig)
     weights: CategoryWeights = Field(default_factory=CategoryWeights)
-    graham_safety: GrahamSafetyWeights = Field(default_factory=GrahamSafetyWeights
+    graham_safety: GrahamSafetyWeights = Field(default_factory=GrahamSafetyWeights)
+    fisher_growth: FisherGrowthWeights = Field(default_factory=FisherGrowthWeights)
+    buffett_quality: BuffettQualityWeights = Field(default_factory=BuffettQualityWeights)
 
 
 class ScannerConfig(BaseModel):
@@ -163,7 +166,7 @@ class ScannerConfig(BaseModel):
     scoring_ranges: ScoringRangeConfig = Field(default_factory=ScoringRangeConfig)
     technical: TechnicalConfig = Field(default_factory=TechnicalConfig)
     fundamental_extras: FundamentalExtrasConfig = Field(default_factory=FundamentalExtrasConfig)
-    sector_profiles: dict = Field(default_factory=dict)
+    sector_profiles: Dict[str, SectorProfileConfig] = Field(default_factory=dict)
 
 
 def load_config_from_file(config_path: str) -> ScannerConfig:
@@ -171,17 +174,39 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
     with open(config_path, "r") as f:
         data = yaml.safe_load(f) or {}
     
-    # Handle nested pydantic models
+    # Process nested structures
     if "filters" in data and isinstance(data["filters"], dict):
         data["filters"] = FilterConfig(**data["filters"])
+    
     if "weights" in data and isinstance(data["weights"], dict):
-        data["weights"] = CategoryWeights(**data["weights"])
+        w = data["weights"]
+        # Handle category_weights
+        if "category_weights" in w and isinstance(w["category_weights"], dict):
+            cw = w["category_weights"]
+            data["weights"] = CategoryWeights(
+                graham_safety=cw.get("graham_safety", 0.35),
+                fisher_growth=cw.get("fisher_growth", 0.30),
+                buffett_quality=cw.get("buffett_quality", 0.35),
+            )
+        # Handle graham_safety weights
+        if "graham_safety" in w and isinstance(w["graham_safety"], dict):
+            data["graham_safety"] = GrahamSafetyWeights(**w["graham_safety"])
+        if "fisher_growth" in w and isinstance(w["fisher_growth"], dict):
+            data["fisher_growth"] = FisherGrowthWeights(**w["fisher_growth"])
+        if "buffett_quality" in w and isinstance(w["buffett_quality"], dict):
+            data["buffett_quality"] = BuffettQualityWeights(**w["buffett_quality"])
+        # If no nested, create CategoryWeights from the top-level
+        else:
+            data["weights"] = CategoryWeights(**w)
+    
+    # Top-level weight objects
     if "graham_safety" in data and isinstance(data["graham_safety"], dict):
         data["graham_safety"] = GrahamSafetyWeights(**data["graham_safety"])
     if "fisher_growth" in data and isinstance(data["fisher_growth"], dict):
         data["fisher_growth"] = FisherGrowthWeights(**data["fisher_growth"])
     if "buffett_quality" in data and isinstance(data["buffett_quality"], dict):
         data["buffett_quality"] = BuffettQualityWeights(**data["buffett_quality"])
+    
     if "batch" in data and isinstance(data["batch"], dict):
         data["batch"] = BatchConfig(**data["batch"])
     if "scoring_ranges" in data and isinstance(data["scoring_ranges"], dict):
@@ -190,16 +215,34 @@ def load_config_from_file(config_path: str) -> ScannerConfig:
         data["technical"] = TechnicalConfig(**data["technical"])
     if "fundamental_extras" in data and isinstance(data["fundamental_extras"], dict):
         data["fundamental_extras"] = FundamentalExtrasConfig(**data["fundamental_extras"])
+    
     if "sector_profiles" in data:
-        # Convert sector profiles
+        profiles = {}
         for sector, profile in data["sector_profiles"].items():
             if isinstance(profile, dict):
-                if "filters" in profile and isinstance(profile["filters"], dict):
-                    profile["filters"] = FilterConfig(**profile["filters"])
-                if "weights" in profile and isinstance(profile["weights"], dict):
-                    profile["weights"] = CategoryWeights(**profile["weights"])
-                if "graham_safety" in profile and isinstance(profile["graham_safety"], dict):
-                    profile["graham_safety"] = GrahamSafetyWeights(**profile["graham_safety"])
+                prof = profile.copy()
+                if "filters" in prof and isinstance(prof["filters"], dict):
+                    prof["filters"] = FilterConfig(**prof["filters"])
+                if "weights" in prof and isinstance(prof["weights"], dict):
+                    pw = prof["weights"]
+                    if "category_weights" in pw and isinstance(pw["category_weights"], dict):
+                        cw = pw["category_weights"]
+                        prof["weights"] = CategoryWeights(
+                            graham_safety=cw.get("graham_safety", 0.35),
+                            fisher_growth=cw.get("fisher_growth", 0.30),
+                            buffett_quality=cw.get("buffett_quality", 0.35),
+                        )
+                    else:
+                        prof["weights"] = CategoryWeights(**pw)
+                    # Nested weight objects in sector profile
+                    if "graham_safety" in pw and isinstance(pw["graham_safety"], dict):
+                        prof["graham_safety"] = GrahamSafetyWeights(**pw["graham_safety"])
+                    if "fisher_growth" in pw and isinstance(pw["fisher_growth"], dict):
+                        prof["fisher_growth"] = FisherGrowthWeights(**pw["fisher_growth"])
+                    if "buffett_quality" in pw and isinstance(pw["buffett_quality"], dict):
+                        prof["buffett_quality"] = BuffettQualityWeights(**pw["buffett_quality"])
+                profiles[sector] = SectorProfileConfig(**prof)
+        data["sector_profiles"] = profiles
     
     return ScannerConfig(**data)
 

@@ -1,10 +1,8 @@
 import logging
-import hashlib
 import pandas as pd
 import yfinance as yf
 from typing import List, Optional
 from stock_scanner.config import ScannerConfig
-from stock_scanner.data.cache import get_price_cache, set_price_cache, get_benchmark_cache, set_benchmark_cache
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +11,8 @@ class DataProvider:
     """
     DataProvider handles ticker loading, bulk price/volume downloading,
     and initial hard filters (price and volume) to reduce downstream fundamental scanning costs.
+    Uses yfinance for all data - no API key required.
     """
-
     def __init__(self, config: ScannerConfig):
         self.config = config
 
@@ -32,29 +30,14 @@ class DataProvider:
         """
         Downloads the last 5 days of price and volume data in bulk,
         calculates last close and 5-day average volume, and applies price & volume filters.
-        Uses caching with 1-hour TTL.
         """
         if not tickers:
             tickers = self.get_default_tickers()
 
-        # Try cache first
-        cached = get_price_cache(tickers, period="5d")
-        if cached is not None:
-            logger.info(f"Using cached price data for {len(tickers)} tickers")
-            records = []
-            for ticker, data in cached.items():
-                if data["last_price"] >= self.config.filters.min_price and                    data["avg_volume"] >= self.config.filters.min_volume:
-                    records.append({
-                        "ticker": ticker,
-                        "last_price": data["last_price"],
-                        "avg_volume": data["avg_volume"]
-                    })
-            return pd.DataFrame(records)
-
         logger.info(f"Downloading market data for {len(tickers)} tickers in bulk...")
         try:
             # Download 5 days of data for fast calculation of latest price and average volume
-            df = yf.download(tickers, period="5d", progress=False)
+            df = yf.download(tickers, period="5d", progress=False, group_by='ticker', auto_adjust=True)
         except Exception as e:
             logger.error(f"Error downloading data from yfinance: {e}")
             return pd.DataFrame(columns=["ticker", "last_price", "avg_volume"])
@@ -64,44 +47,27 @@ class DataProvider:
             return pd.DataFrame(columns=["ticker", "last_price", "avg_volume"])
 
         records = []
-        cache_data = {}
-        
         for ticker in tickers:
             try:
-                # Handle single-ticker vs multi-ticker DataFrame format returned by yfinance
+                # Handle both single-ticker and multi-ticker DataFrame format
                 if isinstance(df.columns, pd.MultiIndex):
-                    close_key = ("Close", ticker) if ("Close", ticker) in df.columns else ("Adj Close", ticker)
-                    vol_key = ("Volume", ticker)
-                    if close_key not in df.columns or vol_key not in df.columns:
+                    if (ticker,) not in df.columns.get_level_values(0):
                         logger.warning(f"Ticker {ticker} missing in MultiIndex columns.")
                         continue
-                    close_col = df[close_key]
-                    vol_col = df[vol_key]
+                    ticker_df = df[ticker]
                 else:
-                    close_key = "Close" if "Close" in df.columns else "Adj Close"
-                    vol_key = "Volume"
-                    if close_key not in df.columns or vol_key not in df.columns:
-                        logger.warning(f"Required keys missing in simple columns.")
-                        continue
-                    close_col = df[close_key]
-                    vol_col = df[vol_key]
-                
+                    ticker_df = df
+
                 # Filter NaNs
-                close_col = close_col.dropna()
-                vol_col = vol_col.dropna()
-                
+                close_col = ticker_df['Close'].dropna()
+                vol_col = ticker_df['Volume'].dropna()
+
                 if close_col.empty or vol_col.empty:
                     logger.debug(f"Ticker {ticker} has missing price or volume data.")
                     continue
-                
+
                 last_price = float(close_col.iloc[-1])
                 avg_volume = float(vol_col.mean())
-
-                # Store in cache data
-                cache_data[ticker] = {
-                    "last_price": last_price,
-                    "avg_volume": avg_volume
-                }
 
                 # Apply hard filters for price and volume
                 if last_price >= self.config.filters.min_price and avg_volume >= self.config.filters.min_volume:
@@ -117,61 +83,82 @@ class DataProvider:
             except Exception as e:
                 logger.error(f"Error processing yfinance data for {ticker}: {e}")
 
-        # Cache the results
-        if cache_data:
-            set_price_cache(tickers, cache_data, period="5d")
-
         return pd.DataFrame(records)
 
     def fetch_historical_prices(self, ticker: str, period: str = "2y") -> pd.DataFrame:
         """
         Downloads historical daily OHLC data for a single ticker.
-        Uses caching with 24-hour TTL.
         """
-        # Try cache first
-        cached = get_price_cache([ticker], period=period)
-        if cached and ticker in cached:
-            # Convert cached data back to DataFrame
-            data = cached[ticker]
-            if isinstance(data, dict) and "ohlcv" in data:
-                return pd.DataFrame(data["ohlcv"])
-        
         logger.info(f"Downloading {period} of historical daily prices for {ticker}...")
         try:
-            df = yf.download(ticker, period=period, progress=False)
+            df = yf.download(ticker, period=period, progress=False, auto_adjust=True)
             if not df.empty:
                 # Ensure all columns are single-level
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = [col[0] for col in df.columns]
-                
-                # Cache the result
-                ohlcv_data = df.to_dict("records")
-                cache_data = {ticker: {"ohlcv": ohlcv_data}}
-                set_price_cache([ticker], cache_data, period=period)
-                
                 return df
         except Exception as e:
             logger.error(f"Error downloading historical data for {ticker}: {e}")
         return pd.DataFrame()
 
-    def fetch_benchmark(self, benchmark: str = "^GSPC", period: str = "2y") -> pd.DataFrame:
+    def fetch_fundamental_data(self, ticker: str) -> dict:
         """
-        Download benchmark data (e.g., S&P 500) with caching.
+        Fetch fundamental data from yfinance info.
+        Returns a dict with available fundamental metrics.
         """
-        cached = get_benchmark_cache(benchmark, period)
-        if cached is not None:
-            return pd.DataFrame(cached)
-        
-        logger.info(f"Downloading benchmark {benchmark} for {period}...")
         try:
-            df = yf.download(benchmark, period=period, progress=False)
-            if not df.empty:
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = [col[0] for col in df.columns]
-                
-                # Cache for 24 hours
-                set_benchmark_cache(benchmark, df.to_dict("records"), period=period)
-                return df
+            yf_ticker = yf.Ticker(ticker)
+            info = yf_ticker.info or {}
+            
+            # Extract available fundamental metrics
+            metrics = {
+                "current_ratio_ttm": info.get("currentRatio"),
+                "debt_to_equity_ttm": info.get("debtToEquity"),
+                "pe_ratio_ttm": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "peg_ratio": info.get("pegRatio"),
+                "price_to_book": info.get("priceToBook"),
+                "ev_to_ebitda": info.get("enterpriseToEbitda"),
+                "revenue_growth_ttm": info.get("revenueGrowth"),
+                "eps_growth_ttm": info.get("earningsGrowth"),
+                "rd_intensity": info.get("researchAndDevelopment", 0) / max(info.get("totalRevenue", 1), 1) if info.get("researchAndDevelopment") else None,
+                "roic_ttm": info.get("returnOnInvestedCapital"),
+                "roe_ttm": info.get("returnOnEquity"),
+                "operating_margin_ttm": info.get("operatingMargins"),
+                "gross_margin_ttm": info.get("grossMargins"),
+                "fcf_to_net_income_ttm": info.get("freeCashflow", 0) / max(info.get("netIncomeToCommon", 1), 1) if info.get("freeCashflow") and info.get("netIncomeToCommon") else None,
+                "dividend_yield": info.get("dividendYield"),
+                "price_to_book": info.get("priceToBook"),
+                "ev_to_ebitda": info.get("enterpriseToEbitda"),
+                "price_to_sales": info.get("priceToSalesTrailing12Months"),
+                "price_to_fcf": info.get("marketCap", 0) / max(info.get("freeCashflow", 1), 1) if info.get("freeCashflow") else None,
+                "market_cap": info.get("marketCap"),
+                "shares_outstanding": info.get("sharesOutstanding"),
+                "net_income_ttm": info.get("netIncomeToCommon"),
+                "ocf_ttm": info.get("operatingCashflow"),
+                "capex_ttm": info.get("capitalExpenditures"),
+                "assets_ttm": info.get("totalAssets"),
+                "liabilities_ttm": info.get("totalLiabilities"),
+                "net_income_3y_avg": info.get("netIncomeToCommon"),  # yfinance doesn't provide 3y avg directly
+                "eps_growth_ttm": info.get("earningsGrowth"),
+                "revenue_growth_ttm": info.get("revenueGrowth"),
+                "eps_ttm": info.get("trailingEps"),
+                "forward_eps": info.get("forwardEps"),
+                "peg_ratio": info.get("pegRatio"),
+            }
+            
+            # Remove None values
+            return {k: v for k, v in metrics.items() if v is not None and not (isinstance(v, float) and math.isnan(v))}
         except Exception as e:
-            logger.error(f"Error downloading benchmark {benchmark}: {e}")
-        return pd.DataFrame()
+            logger.warning(f"Failed to fetch fundamental data for {ticker}: {e}")
+            return {}
+
+    def get_default_tickers(self) -> List[str]:
+        """Default S&P 500 major tickers."""
+        return [
+            "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
+            "BRK-B", "JNJ", "V", "WMT", "PG", "JPM", "UNH", "HD",
+            "MA", "LLY", "AVGO", "ABBV", "COST", "MRK", "ADBE", "CRM",
+            "ORCL", "ACN", "CVX", "TXN", "AMD", "QCOM", "INTC", "NFLX",
+            "AMD", "AMD", "DIS", "NKE", "PYPL", "UBER", "SNOW", "ZM"
+        ]

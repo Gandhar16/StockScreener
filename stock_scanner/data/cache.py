@@ -216,3 +216,165 @@ class CacheBatch:
     
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.commit()
+
+
+# Specialized cache functions for common operations
+def get_price_cache(tickers: list[str], period: str = "1y") -> dict | None:
+    """Get cached price data for tickers."""
+    key = get_price_cache_key(tickers, period)
+    return get_cached(key, ttl=3600)  # 1 hour TTL
+
+
+def set_price_cache(tickers: list[str], data: dict, period: str = "1y") -> None:
+    """Cache price data for tickers."""
+    key = get_price_cache_key(tickers, period)
+    set_cached(key, data)
+
+
+def get_benchmark_cache(symbol: str, period: str = "2y") -> dict | None:
+    """Get cached benchmark data."""
+    key = get_benchmark_cache_key(symbol, period)
+    return get_cached(key, ttl=86400)  # 24 hour TTL
+
+
+def set_benchmark_cache(symbol: str, data: dict, period: str = "2y") -> None:
+    """Cache benchmark data."""
+    key = get_benchmark_cache_key(symbol, period)
+    set_cached(key, data)
+
+
+def get_fundamental_cache(ticker: str, as_of_year: int | None = None) -> dict | None:
+    """Get cached fundamental data for a ticker."""
+    key = get_fundamental_cache_key(ticker, as_of_year)
+    return get_cached(key, ttl=86400 * 30)  # 30 days TTL
+
+
+def set_fundamental_cache(ticker: str, data: dict, as_of_year: int | None = None) -> None:
+    """Cache fundamental data for a ticker."""
+    key = get_fundamental_cache_key(ticker, as_of_year)
+    set_cached(key, data)
+
+
+def get_scan_cache(scan_name: str, **filters) -> dict | None:
+    """Get cached scan results."""
+    key = f"scan_{scan_name}"
+    for k, v in sorted(filters.items()):
+        key += f"_{k}={v}"
+    return get_cached(key, ttl=86400)
+
+
+def set_scan_cache(scan_name: str, data: dict, **filters) -> None:
+    """Cache scan results."""
+    key = f"scan_{scan_name}"
+    for k, v in sorted(filters.items()):
+        key += f"_{k}={v}"
+    set_cached(key, data)
+
+
+# Context manager for cache transactions
+class CacheTransaction:
+    """Context manager for atomic cache updates."""
+    
+    def __init__(self, prefix: str, **params):
+        self.prefix = prefix
+        self.params = params
+        self._temp_data = None
+    
+    def __enter__(self) -> "CacheTransaction":
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if exc_type is None and self._temp_data is not None:
+            set_cached(self.prefix, self._temp_data, **self.params)
+        return False
+    
+    def set(self, data):
+        self._temp_data = data
+
+
+# Batch cache operations for performance
+class BatchCache:
+    """Batch multiple cache operations for efficiency."""
+    
+    def __init__(self):
+        self._gets = []
+        self._sets = []
+    
+    def get(self, prefix: str, **params):
+        """Queue a get operation."""
+        key = _cache_key(prefix, **params)
+        self._gets.append((prefix, params, key))
+        return (key, None)
+    
+    def set(self, prefix: str, value, **params):
+        """Queue a set operation."""
+        self._sets.append((prefix, value, params))
+    
+    def execute(self):
+        """Execute all queued operations."""
+        results = {}
+        
+        # Execute gets
+        for prefix, params, key in self._gets:
+            path = _cache_path(key)
+            if path.exists():
+                try:
+                    results[key] = pickle.loads(path.read_bytes())
+                except (pickle.PickleError, EOFError, OSError):
+                    results[key] = None
+            else:
+                results[key] = None
+        
+        # Execute sets
+        for prefix, value, params in self._sets:
+            key = _cache_key(prefix, **params)
+            path = _cache_path(key)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL))
+            results[key] = value
+        
+        return results
+    
+    def __enter__(self) -> "BatchCache":
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.execute()
+        return False
+
+
+def clear_expired(ttl: int = DEFAULT_TTL) -> int:
+    """Remove all expired cache entries.
+    
+    Returns:
+        Number of files removed
+    """
+    _ensure_cache_dir()
+    count = 0
+    now = time.time()
+    for path in CACHE_DIR.glob("*.pkl"):
+        try:
+            mtime = path.stat().st_mtime
+            if now - mtime > ttl:
+                path.unlink()
+                count += 1
+        except OSError:
+            pass
+    return count
+
+
+def invalidate_prefix(prefix: str) -> int:
+    """Invalidate all cache entries matching prefix.
+    
+    Returns:
+        Number of files removed
+    """
+    _ensure_cache_dir()
+    count = 0
+    for path in CACHE_DIR.glob(f"{prefix}_*.pkl"):
+        try:
+            path.unlink()
+            count += 1
+        except OSError:
+            pass
+    return count
