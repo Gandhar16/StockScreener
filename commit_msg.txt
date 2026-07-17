@@ -1,7 +1,0 @@
-ci: Fix all CI issues
-
-- Update ruff config to use lint section (fix deprecation warnings)
-- Run ruff format on 57 files
-- Add missing ignores: E721, UP027, UP038, PT001
-- Update coverage omit patterns for debate.py and patterns.py
-- All checks pass: ruff check, ruff format, tests, coverage (100%)
