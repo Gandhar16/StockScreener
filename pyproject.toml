@@ -39,7 +39,7 @@ types-requests = "*"
 types-PyYAML = "*"
 
 [tool.poetry.plugins.console]
-stock-scan = "main:main"
+stock-scan = "stock_scanner.main:main"
 
 [project]
 name = "stock_scanner"
@@ -74,7 +74,7 @@ dev = [
 
 
 [project.scripts]
-stock-scan = "main:main"
+stock-scan = "stock_scanner.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
