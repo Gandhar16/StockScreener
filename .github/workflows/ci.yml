@@ -151,6 +151,9 @@ jobs:
           node-version: "22"
           cache: 'npm'
           cache-dependency-path: dashboard/package-lock.json
+      - name: Generate package-lock.json
+        working-directory: ./dashboard
+        run: npm install --package-lock-only
       
       - name: Install dependencies
         working-directory: ./dashboard
