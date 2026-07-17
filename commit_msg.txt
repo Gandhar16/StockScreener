@@ -1,1 +1,5 @@
-ci: Fix all TypeScript errors, lint, and dashboard build
+ci: Fix package entry point and build issues
+
+- Move main.py into stock_scanner package
+- Fix entry point to stock_scanner.main:main
+- Remove main.py from packages list in pyproject.toml
