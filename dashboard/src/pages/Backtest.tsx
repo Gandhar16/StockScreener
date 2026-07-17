@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
@@ -31,11 +31,7 @@ export const Backtest: FC = () => {
     rebalance_days: 30,
   });
 
-  useEffect(() => {
-    fetchResults();
-  }, []);
-
-  const fetchResults = async () => {
+  const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/backtest', {
@@ -56,7 +52,11 @@ export const Backtest: FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [config]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [fetchResults]);
 
   const runBacktest = () => {
     fetchResults();

@@ -1,1 +1,1 @@
-ci: Fix all TypeScript errors and dashboard build
+ci: Fix all TypeScript errors, lint, and dashboard build

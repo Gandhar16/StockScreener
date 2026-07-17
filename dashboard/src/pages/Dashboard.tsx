@@ -15,8 +15,8 @@ interface EquityCall {
   stop?: number;
   target?: number;
   thesis?: string;
-  technical?: any;
-  fundamental?: any;
+  technical?: Record<string, unknown>;
+  fundamental?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -160,7 +160,7 @@ export const Dashboard: FC = () => {
               <span className="text-sm font-medium text-text-secondary">Filter:</span>
               <Select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
+                onChange={(e) => setFilterType(e.target.value as "all" | "long_term" | "swing" | "sell")}
                 options={[
                   { value: 'all', label: 'All Calls' },
                   { value: 'long_term', label: 'Long-Term' },

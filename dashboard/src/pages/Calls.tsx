@@ -16,9 +16,9 @@ interface EquityCall {
   target?: number;
   thesis?: string;
   risks?: string[];
-  technical?: any;
-  fundamental?: any;
-  entry_signal?: any;
+  technical?: Record<string, unknown>;
+  fundamental?: Record<string, unknown>;
+  entry_signal?: string;
   timestamp: string;
 }
 
@@ -74,7 +74,7 @@ export const Calls: FC = () => {
         <div className="flex items-center gap-3">
           <Select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as any)}
+            onChange={(e) => setFilterType(e.target.value as "all" | "long_term" | "swing" | "sell")}
             options={[
               { value: 'all', label: 'All Types' },
               { value: 'long_term', label: 'Long-Term' },
@@ -85,7 +85,7 @@ export const Calls: FC = () => {
           />
           <Select
             value={sortBy}
-            onChange={(e) => { setSortBy(e.target.value as any); setSortOrder('desc'); }}
+            onChange={(e) => { setSortBy(e.target.value as "score" | "ticker" | "timestamp"); setSortOrder('desc'); }}
             options={[
               { value: 'score', label: 'Sort by Score' },
               { value: 'ticker', label: 'Sort by Ticker' },

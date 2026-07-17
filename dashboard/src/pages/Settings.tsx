@@ -173,7 +173,7 @@ export const Settings: FC = () => {
     },
   ];
 
-  const handleChange = (key: string, value: any) => {
+  const handleChange = (key: keyof Settings, value: string | number) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 

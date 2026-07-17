@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from 'react';
+import { FC, useState, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
@@ -31,11 +31,7 @@ export const Scanner: FC = () => {
     min_market_cap: 1000000000,
   });
 
-  useEffect(() => {
-    fetchResults();
-  }, []);
-
-  const fetchResults = async () => {
+  const fetchResults = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/scan', {
@@ -57,7 +53,7 @@ export const Scanner: FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [scanConfig]);
 
   const runScan = () => {
     fetchResults();
