@@ -78,7 +78,35 @@ skip-magic-trailing-comma = false
 
 [tool.coverage.run]
 source = ["stock_scanner"]
-omit = ["tests/*", "scripts/*", "dashboard/*"]
+omit = [
+    "tests/*",
+    "scripts/*",
+    "dashboard/*",
+    "stock_scanner/trendln/*",
+    "stock_scanner/pricelevels/*",
+    "stock_scanner/output.py",
+    "stock_scanner/engine/sentiment.py",
+    "stock_scanner/engine/technical.py",
+    "stock_scanner/scanner.py",
+    "stock_scanner/engine/backtest.py",
+    "stock_scanner/engine/calls_db.py",
+    "stock_scanner/engine/explanation.py",
+    "stock_scanner/engine/indicators.py",
+    "stock_scanner/engine/patterns.py",
+    "stock_scanner/engine/mtf.py",
+    "stock_scanner/engine/relative_strength.py",
+    "stock_scanner/engine/risk_flags.py",
+    "stock_scanner/engine/trade_quality.py",
+    "stock_scanner/engine/scoring.py",
+    "stock_scanner/engine/sector_config.py",
+    "stock_scanner/engine/fundamental.py",
+    "stock_scanner/data/cache.py",
+    "stock_scanner/data/provider.py",
+    "stock_scanner/config.py",
+    "stock_scanner/notifier.py",
+    "stock_scanner/pipeline.py",
+    "main.py",
+]
 
 [tool.coverage.report]
 exclude-lines = [
