@@ -8,11 +8,9 @@ from stock_scanner.engine.fundamental import FundamentalEngine
 
 logger = logging.getLogger(__name__)
 
+
 def get_bulk_historical_returns(
-    tickers: list[str],
-    start_date: pd.Timestamp,
-    end_date: pd.Timestamp,
-    benchmark: str = "^GSPC"
+    tickers: list[str], start_date: pd.Timestamp, end_date: pd.Timestamp, benchmark: str = "^GSPC"
 ) -> dict[str, float]:
     """
     Downloads historical daily prices for all tickers (including the benchmark)
@@ -26,9 +24,9 @@ def get_bulk_historical_returns(
     try:
         df = yf.download(
             all_symbols,
-            start=start_search.strftime('%Y-%m-%d'),
-            end=end_search.strftime('%Y-%m-%d'),
-            progress=False
+            start=start_search.strftime("%Y-%m-%d"),
+            end=end_search.strftime("%Y-%m-%d"),
+            progress=False,
         )
     except Exception as e:
         logger.error(f"Failed to download bulk historical prices: {e}")
@@ -43,18 +41,18 @@ def get_bulk_historical_returns(
         try:
             # Check if columns are MultiIndex or single index
             if isinstance(df.columns, pd.MultiIndex):
-                if 'Adj Close' in df.columns.levels[0]:
-                    series = df['Adj Close'][sym]
-                elif 'Close' in df.columns.levels[0]:
-                    series = df['Close'][sym]
+                if "Adj Close" in df.columns.levels[0]:
+                    series = df["Adj Close"][sym]
+                elif "Close" in df.columns.levels[0]:
+                    series = df["Close"][sym]
                 else:
                     continue
             else:
                 # If only one ticker was returned and columns is not a MultiIndex
-                if 'Adj Close' in df.columns:
-                    series = df['Adj Close']
-                elif 'Close' in df.columns:
-                    series = df['Close']
+                if "Adj Close" in df.columns:
+                    series = df["Adj Close"]
+                elif "Close" in df.columns:
+                    series = df["Close"]
                 else:
                     continue
 
@@ -79,21 +77,19 @@ def get_bulk_historical_returns(
 
     return returns
 
+
 class Backtester:
     """
     Simulates historical stock selection using FundamentalEngine
     and calculates portfolio holding period return compared to a benchmark.
     """
+
     def __init__(self, engine: FundamentalEngine, benchmark_ticker: str = "^GSPC"):
         self.engine = engine
         self.benchmark_ticker = benchmark_ticker
 
     def run_backtest(
-        self,
-        tickers: list[str],
-        start_date: str,
-        holding_period_months: int = 12,
-        top_n: int = 5
+        self, tickers: list[str], start_date: str, holding_period_months: int = 12, top_n: int = 5
     ) -> dict[str, Any]:
         """
         Runs the backtest simulation.
@@ -113,7 +109,9 @@ class Backtester:
 
         # Screen using prior year's statements to avoid lookahead bias
         as_of_year = start_ts.year - 1
-        logger.info(f"Running historical screen for {start_date} using statements as of {as_of_year}...")
+        logger.info(
+            f"Running historical screen for {start_date} using statements as of {as_of_year}..."
+        )
 
         scored_df = self.engine.analyze_tickers(tickers, as_of_year=as_of_year)
         if scored_df.empty:
@@ -124,7 +122,7 @@ class Backtester:
                 "outperformance": 0.0,
                 "selected_stocks": [],
                 "stock_returns": {},
-                "all_scores": pd.DataFrame()
+                "all_scores": pd.DataFrame(),
             }
 
         # Exclude disqualified stocks (red flags)
@@ -140,26 +138,25 @@ class Backtester:
                 "outperformance": 0.0,
                 "selected_stocks": [],
                 "stock_returns": {},
-                "all_scores": scored_df
+                "all_scores": scored_df,
             }
 
         # Get bulk historical returns
         all_returns = get_bulk_historical_returns(
-            selected_tickers,
-            start_ts,
-            end_ts,
-            self.benchmark_ticker
+            selected_tickers, start_ts, end_ts, self.benchmark_ticker
         )
 
         portfolio_returns = []
         stock_returns_dict = {}
         for ticker in selected_tickers:
-            ret = all_returns.get(ticker, float('nan'))
+            ret = all_returns.get(ticker, float("nan"))
             stock_returns_dict[ticker] = ret
             if not pd.isna(ret):
                 portfolio_returns.append(ret)
 
-        portfolio_return = sum(portfolio_returns) / len(portfolio_returns) if portfolio_returns else 0.0
+        portfolio_return = (
+            sum(portfolio_returns) / len(portfolio_returns) if portfolio_returns else 0.0
+        )
         benchmark_return = all_returns.get(self.benchmark_ticker, 0.0)
         outperformance = portfolio_return - benchmark_return
 
@@ -174,5 +171,5 @@ class Backtester:
             "outperformance": outperformance,
             "selected_stocks": selected_tickers,
             "stock_returns": stock_returns_dict,
-            "all_scores": scored_df
+            "all_scores": scored_df,
         }

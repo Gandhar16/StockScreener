@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -37,8 +38,8 @@ class CategoryWeights(BaseModel):
     fisher_growth: float = Field(default=0.30)
     buffett_quality: float = Field(default=0.35)
 
-    @model_validator(mode='after')
-    def validate_sum(self) -> 'CategoryWeights':
+    @model_validator(mode="after")
+    def validate_sum(self) -> "CategoryWeights":
         total = self.graham_safety + self.fisher_growth + self.buffett_quality
         if not math.isclose(total, 1.0, rel_tol=1e-5):
             raise ValueError(f"Category weights must sum to 1.0, got {total}")
@@ -50,8 +51,8 @@ class GrahamSafetyWeights(BaseModel):
     debt_to_equity: float = Field(default=0.3)
     pe_ratio: float = Field(default=0.4)
 
-    @model_validator(mode='after')
-    def validate_sum(self) -> 'GrahamSafetyWeights':
+    @model_validator(mode="after")
+    def validate_sum(self) -> "GrahamSafetyWeights":
         total = self.current_ratio + self.debt_to_equity + self.pe_ratio
         if not math.isclose(total, 1.0, rel_tol=1e-5):
             raise ValueError(f"Graham safety weights must sum to 1.0, got {total}")
@@ -63,8 +64,8 @@ class FisherGrowthWeights(BaseModel):
     eps_growth_yoy: float = Field(default=0.4)
     rd_intensity: float = Field(default=0.2)
 
-    @model_validator(mode='after')
-    def validate_sum(self) -> 'FisherGrowthWeights':
+    @model_validator(mode="after")
+    def validate_sum(self) -> "FisherGrowthWeights":
         total = self.revenue_growth_yoy + self.eps_growth_yoy + self.rd_intensity
         if not math.isclose(total, 1.0, rel_tol=1e-5):
             raise ValueError(f"Fisher growth weights must sum to 1.0, got {total}")
@@ -76,8 +77,8 @@ class BuffettQualityWeights(BaseModel):
     operating_margin: float = Field(default=0.3)
     fcf_to_net_income: float = Field(default=0.3)
 
-    @model_validator(mode='after')
-    def validate_sum(self) -> 'BuffettQualityWeights':
+    @model_validator(mode="after")
+    def validate_sum(self) -> "BuffettQualityWeights":
         total = self.roic + self.operating_margin + self.fcf_to_net_income
         if not math.isclose(total, 1.0, rel_tol=1e-5):
             raise ValueError(f"Buffett quality weights must sum to 1.0, got {total}")
@@ -85,8 +86,12 @@ class BuffettQualityWeights(BaseModel):
 
 
 class BatchConfig(BaseModel):
-    size: int = Field(default=5, ge=1, description="Number of tickers per fundamental screening batch")
-    delay_seconds: float = Field(default=15.0, ge=0.0, description="Delay between batches in seconds")
+    size: int = Field(
+        default=5, ge=1, description="Number of tickers per fundamental screening batch"
+    )
+    delay_seconds: float = Field(
+        default=15.0, ge=0.0, description="Delay between batches in seconds"
+    )
 
 
 class ScoringRangeConfig(BaseModel):
@@ -102,19 +107,29 @@ class ScoringRangeConfig(BaseModel):
 
 
 class TechnicalConfig(BaseModel):
-    history_period: str = Field(default="2y", description="Historical period for technical analysis")
+    history_period: str = Field(
+        default="2y", description="Historical period for technical analysis"
+    )
 
     class MTFConfig(BaseModel):
-        aligned_threshold: int = Field(default=55, description="Weekly alignment score needed to count as aligned")
+        aligned_threshold: int = Field(
+            default=55, description="Weekly alignment score needed to count as aligned"
+        )
 
     class RSConfig(BaseModel):
-        benchmark_map: dict = Field(default_factory=lambda: {
-            ".NS": "^NSEI",
-            ".BO": "^BSESN",
-        })
+        benchmark_map: dict = Field(
+            default_factory=lambda: {
+                ".NS": "^NSEI",
+                ".BO": "^BSESN",
+            }
+        )
         default_benchmark: str = Field(default="^GSPC")
-        soft_floor: float = Field(default=-5.0, description="Bull setups need Mansfield RS above this (or improving)")
-        hard_floor: float = Field(default=-20.0, description="Below this = severe laggard, hard reject")
+        soft_floor: float = Field(
+            default=-5.0, description="Bull setups need Mansfield RS above this (or improving)"
+        )
+        hard_floor: float = Field(
+            default=-20.0, description="Below this = severe laggard, hard reject"
+        )
 
     class GatesConfig(BaseModel):
         account_size: float = Field(default=100000)
@@ -127,13 +142,15 @@ class TechnicalConfig(BaseModel):
         min_rr_floor: float = Field(default=1.5)
 
     class SetupScoreConfig(BaseModel):
-        weights: dict = Field(default_factory=lambda: {
-            "pattern": 0.35,
-            "mtf": 0.20,
-            "rs": 0.15,
-            "volume": 0.15,
-            "rr": 0.15,
-        })
+        weights: dict = Field(
+            default_factory=lambda: {
+                "pattern": 0.35,
+                "mtf": 0.20,
+                "rs": 0.15,
+                "volume": 0.15,
+                "rr": 0.15,
+            }
+        )
 
     mtf: MTFConfig = Field(default_factory=MTFConfig)
     rs: RSConfig = Field(default_factory=RSConfig)

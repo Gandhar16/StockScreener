@@ -39,13 +39,13 @@ logging.basicConfig(level=logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-NOTIONAL = 10_000   # assumed $ per call for P&L display
+NOTIONAL = 10_000  # assumed $ per call for P&L display
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def fetch_pnl_curve(ticker: str, call_date: str, entry_price: float,
-                    call_type: str) -> list[dict]:
+
+def fetch_pnl_curve(ticker: str, call_date: str, entry_price: float, call_type: str) -> list[dict]:
     """Daily P&L % from call_date to today."""
     try:
         raw = yf.download(ticker, start=call_date, auto_adjust=True, progress=False)
@@ -57,8 +57,11 @@ def fetch_pnl_curve(ticker: str, call_date: str, entry_price: float,
         curve = []
         for dt, price in closes.items():
             px = float(price)
-            pnl = ((entry_price - px) / entry_price if call_type == "SELL"
-                   else (px - entry_price) / entry_price) * 100
+            pnl = (
+                (entry_price - px) / entry_price
+                if call_type == "SELL"
+                else (px - entry_price) / entry_price
+            ) * 100
             curve.append({"date": dt.strftime("%Y-%m-%d"), "pnl_pct": round(pnl, 2)})
         return curve
     except Exception:
@@ -72,9 +75,7 @@ def compute_portfolio_curve(curves: dict[str, list[dict]]) -> list[dict]:
         for pt in curve:
             date_vals[pt["date"]].append(pt["pnl_pct"])
     combined = [
-        {"date": d, "pnl_pct": round(sum(v) / len(v), 2)}
-        for d, v in sorted(date_vals.items())
-        if v
+        {"date": d, "pnl_pct": round(sum(v) / len(v), 2)} for d, v in sorted(date_vals.items()) if v
     ]
     return combined
 
@@ -94,10 +95,15 @@ def calc_pnl(call_type: str, entry: float, current: float):
     return round(pct, 6), round(pct * NOTIONAL, 2)
 
 
-def determine_status(entry: float, stop: float | None,
-                     t1: float | None, current: float,
-                     pnl_pct: float, sentiment_label: str,
-                     call_type: str) -> str:
+def determine_status(
+    entry: float,
+    stop: float | None,
+    t1: float | None,
+    current: float,
+    pnl_pct: float,
+    sentiment_label: str,
+    call_type: str,
+) -> str:
     """
     Returns BUY / HOLD / SELL.
     BUY  = still open, good opportunity to add
@@ -126,30 +132,35 @@ def determine_status(entry: float, stop: float | None,
     return "HOLD"
 
 
-def build_notes(call: dict, current: float, status: str,
-                pnl_pct: float, sentiment_label: str) -> tuple:
+def build_notes(
+    call: dict, current: float, status: str, pnl_pct: float, sentiment_label: str
+) -> tuple:
     """Returns (notes_str, recommendation_str)."""
-    _entry    = call.get("entry_price") or current
-    stop     = call.get("stop_loss")
-    t1       = call.get("t1")
+    _entry = call.get("entry_price") or current
+    stop = call.get("stop_loss")
+    t1 = call.get("t1")
     pct_disp = f"{pnl_pct*100:+.1f}%"
-    parts    = []
+    parts = []
 
     if status == "SELL":
         if stop and current <= stop:
             notes = f"Stop loss hit at {current:.2f}. Position closed at {pct_disp}."
-            rec   = "SELL — stop triggered. Exit the position immediately."
+            rec = "SELL — stop triggered. Exit the position immediately."
         elif t1 and current >= t1:
             notes = f"T1 target {t1:.2f} reached at {current:.2f}. Up {pct_disp}."
-            rec   = "SELL — T1 target hit. Take profits. Re-enter on next BUY signal."
+            rec = "SELL — T1 target hit. Take profits. Re-enter on next BUY signal."
         else:
             notes = f"Sentiment turned bearish while in drawdown ({pct_disp}). Thesis weakened."
-            rec   = "SELL — bearish news in drawdown. Cut the position."
+            rec = "SELL — bearish news in drawdown. Cut the position."
         return notes, rec
 
     if status == "BUY":
         notes = f"Pulled back to good add zone ({pct_disp}). Above stop, thesis intact."
-        rec   = f"BUY MORE — good add opportunity near support. Stop at {stop:.2f}." if stop else "BUY MORE — add to position."
+        rec = (
+            f"BUY MORE — good add opportunity near support. Stop at {stop:.2f}."
+            if stop
+            else "BUY MORE — add to position."
+        )
         return notes, rec
 
     # HOLD
@@ -187,6 +198,7 @@ def build_notes(call: dict, current: float, status: str,
 
 # ── main refresh ──────────────────────────────────────────────────────────────
 
+
 def refresh_all(run_sentiment: bool = True):
     init_db()
     calls = get_active_calls()
@@ -202,6 +214,7 @@ def refresh_all(run_sentiment: bool = True):
         tickers = list({c["ticker"] for c in calls})
         try:
             from stock_scanner.engine.sentiment import SentimentEngine
+
             engine = SentimentEngine()
             sentiment_map = engine.analyze_batch(tickers)
         except Exception as e:
@@ -210,10 +223,10 @@ def refresh_all(run_sentiment: bool = True):
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for call in calls:
-        ticker    = call["ticker"]
-        call_id   = call["id"]
+        ticker = call["ticker"]
+        call_id = call["id"]
         call_type = call.get("call_type", "SWING")
-        entry     = call.get("entry_price")
+        entry = call.get("entry_price")
 
         current = fetch_price(ticker)
         if current is None:
@@ -222,8 +235,8 @@ def refresh_all(run_sentiment: bool = True):
 
         pnl_pct, pnl_abs = calc_pnl(call_type, entry, current)
 
-        sent_data     = sentiment_map.get(ticker, {})
-        sent_label    = sent_data.get("sentiment_label", call.get("sentiment_label", "NEUTRAL"))
+        sent_data = sentiment_map.get(ticker, {})
+        sent_label = sent_data.get("sentiment_label", call.get("sentiment_label", "NEUTRAL"))
 
         status = determine_status(
             entry=entry or current,
@@ -238,15 +251,15 @@ def refresh_all(run_sentiment: bool = True):
         notes, rec = build_notes(call, current, status, pnl_pct, sent_label)
 
         update_call(
-            call_id        = call_id,
-            current_price  = current,
-            status         = status,
-            pnl_pct        = pnl_pct,
-            pnl_abs        = pnl_abs,
-            notes          = notes,
-            recommendation = rec,
-            sentiment_label= sent_label,
-            exit_price     = current if status == "SELL" else None,
+            call_id=call_id,
+            current_price=current,
+            status=status,
+            pnl_pct=pnl_pct,
+            pnl_abs=pnl_abs,
+            notes=notes,
+            recommendation=rec,
+            sentiment_label=sent_label,
+            exit_price=current if status == "SELL" else None,
         )
 
         f"{pnl_pct*100:+.1f}%"
@@ -256,10 +269,10 @@ def refresh_all(run_sentiment: bool = True):
     active_after = get_active_calls()
     equity_curves: dict[str, list] = {}
     for call in active_after:
-        ticker     = call["ticker"]
-        call_date  = (call.get("call_date") or "")[:10]
-        entry      = call.get("entry_price")
-        call_type  = call.get("call_type", "SWING")
+        ticker = call["ticker"]
+        call_date = (call.get("call_date") or "")[:10]
+        entry = call.get("entry_price")
+        call_type = call.get("call_type", "SWING")
         if entry and call_date:
             curve = fetch_pnl_curve(ticker, call_date, entry, call_type)
             if curve:
@@ -281,12 +294,16 @@ def refresh_all(run_sentiment: bool = True):
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--no-sentiment", action="store_true",
-                   help="Skip sentiment refresh")
-    p.add_argument("--close", nargs=2, metavar=("CALL_ID", "EXIT_PRICE"),
-                   help="Manually close a call: --close 42 195.00")
+    p.add_argument("--no-sentiment", action="store_true", help="Skip sentiment refresh")
+    p.add_argument(
+        "--close",
+        nargs=2,
+        metavar=("CALL_ID", "EXIT_PRICE"),
+        help="Manually close a call: --close 42 195.00",
+    )
     return p.parse_args()
 
 
@@ -294,7 +311,7 @@ def main():
     args = parse_args()
 
     if args.close:
-        call_id    = int(args.close[0])
+        call_id = int(args.close[0])
         exit_price = float(args.close[1])
         close_call(call_id, exit_price)
         logger.info(f"  Call #{call_id} closed at {exit_price:.2f}")

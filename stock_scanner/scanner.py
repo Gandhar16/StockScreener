@@ -8,6 +8,7 @@ from stock_scanner.engine.fundamental import FundamentalEngine
 
 logger = logging.getLogger(__name__)
 
+
 class StockScanner:
     """
     StockScanner orchestrates the stock screening workflow.
@@ -15,6 +16,7 @@ class StockScanner:
       1. 'single_stock': Directly runs fundamental scoring on specified tickers.
       2. 'market_scan': Performs bulk price & volume filtering first, then scores the remaining stocks.
     """
+
     def __init__(self, config: ScannerConfig):
         self.config = config
         self.provider = DataProvider(config)
@@ -40,9 +42,7 @@ class StockScanner:
                 price_df = self.provider.fetch_and_filter_prices(self.config.tickers)
                 if not price_df.empty and not results_df.empty:
                     results_df = results_df.merge(
-                        price_df[["ticker", "last_price", "avg_volume"]],
-                        on="ticker",
-                        how="left"
+                        price_df[["ticker", "last_price", "avg_volume"]], on="ticker", how="left"
                     )
             except Exception as e:
                 logger.warning(f"Failed to fetch market prices for single stock mode details: {e}")
@@ -52,7 +52,9 @@ class StockScanner:
 
         elif self.config.mode == "market_scan":
             # 1. Fetch initial candidate ticker list
-            candidates = self.config.tickers if self.config.tickers else self.provider.get_default_tickers()
+            candidates = (
+                self.config.tickers if self.config.tickers else self.provider.get_default_tickers()
+            )
             logger.info(f"Loaded {len(candidates)} candidate tickers for scanning.")
 
             # 2. Stage 1 Filter: Price & Volume via yfinance
@@ -62,7 +64,9 @@ class StockScanner:
                 return pd.DataFrame()
 
             passed_tickers = filtered_market_data["ticker"].tolist()
-            logger.info(f"{len(passed_tickers)} tickers passed price & volume checks. Proceeding to fundamental analysis.")
+            logger.info(
+                f"{len(passed_tickers)} tickers passed price & volume checks. Proceeding to fundamental analysis."
+            )
 
             # 3. Stage 2 Filter & Scoring: Fundamentals via FinanceToolkit
             fundamental_results = self.engine.analyze_tickers(passed_tickers)
@@ -74,11 +78,13 @@ class StockScanner:
             final_df = fundamental_results.merge(
                 filtered_market_data[["ticker", "last_price", "avg_volume"]],
                 on="ticker",
-                how="left"
+                how="left",
             )
 
             # Sort by total score descending
-            final_df = final_df.sort_values(by="total_score", ascending=False).reset_index(drop=True)
+            final_df = final_df.sort_values(by="total_score", ascending=False).reset_index(
+                drop=True
+            )
 
             # 5. Technical Market Structure Analysis
             final_df = self._run_technical_analysis(final_df)
@@ -95,6 +101,7 @@ class StockScanner:
             return results_df
 
         from stock_scanner.engine.technical import MarketStructureEngine
+
         engine = MarketStructureEngine()
 
         support_zones_list = []
@@ -133,9 +140,13 @@ class StockScanner:
                 support_trendlines_list.append(analysis["support_trendlines"])
                 resistance_trendlines_list.append(analysis["resistance_trendlines"])
                 long_term_support_list.append(analysis.get("long_term_support_trendlines", []))
-                long_term_resistance_list.append(analysis.get("long_term_resistance_trendlines", []))
+                long_term_resistance_list.append(
+                    analysis.get("long_term_resistance_trendlines", [])
+                )
                 short_term_support_list.append(analysis.get("short_term_support_trendlines", []))
-                short_term_resistance_list.append(analysis.get("short_term_resistance_trendlines", []))
+                short_term_resistance_list.append(
+                    analysis.get("short_term_resistance_trendlines", [])
+                )
                 contexts_list.append(analysis["context"])
             except Exception as e:
                 logger.error(f"Failed to perform technical analysis for {ticker}: {e}")

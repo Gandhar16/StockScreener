@@ -12,13 +12,12 @@ laggards" filter.
 Missing benchmark data always degrades to pass-through (None), never a fail.
 """
 
-
 import numpy as np
 import pandas as pd
 
 # Suffix → benchmark index. Anything unmatched falls back to ^GSPC.
 DEFAULT_BENCHMARK_MAP = {
-    ".NS": "^NSEI",   # NSE India → NIFTY 50
+    ".NS": "^NSEI",  # NSE India → NIFTY 50
     ".BO": "^BSESN",  # BSE India → SENSEX
 }
 DEFAULT_BENCHMARK = "^GSPC"  # S&P 500
@@ -45,8 +44,8 @@ def fetch_benchmark_history(symbol: str, period: str = "2y") -> pd.Series | None
         return _benchmark_cache[key]
     try:
         import yfinance as yf
-        df = yf.download(symbol, period=period, interval="1d",
-                         progress=False, auto_adjust=True)
+
+        df = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
         if df is None or df.empty:
             return None
         close = df["Close"]
@@ -65,8 +64,7 @@ def clear_benchmark_cache() -> None:
     _benchmark_cache.clear()
 
 
-def mansfield_rs(close: pd.Series, bench_close: pd.Series | None,
-                 period: int = 252) -> dict:
+def mansfield_rs(close: pd.Series, bench_close: pd.Series | None, period: int = 252) -> dict:
     """
     Mansfield Relative Strength at the latest bar.
 
@@ -79,8 +77,7 @@ def mansfield_rs(close: pd.Series, bench_close: pd.Series | None,
     just printed a new high over the period window, and a coarse rs_trend.
     Returns all-None dict when benchmark data is missing/insufficient.
     """
-    empty = {"rs_mansfield": None, "rs_line_slope_20d": None,
-             "rs_new_high": None, "rs_trend": None}
+    empty = {"rs_mansfield": None, "rs_line_slope_20d": None, "rs_new_high": None, "rs_trend": None}
     if bench_close is None or len(bench_close) == 0:
         return empty
 
@@ -125,8 +122,7 @@ def mansfield_rs(close: pd.Series, bench_close: pd.Series | None,
     }
 
 
-def rs_gate(direction: str, rs: dict,
-            soft_floor: float = -5.0, hard_floor: float = -20.0) -> dict:
+def rs_gate(direction: str, rs: dict, soft_floor: float = -5.0, hard_floor: float = -20.0) -> dict:
     """
     Gate a setup on relative strength.
 
@@ -141,26 +137,24 @@ def rs_gate(direction: str, rs: dict,
 
     if direction == "bullish":
         if rs_m <= hard_floor:
-            return {"rs_pass": False,
-                    "rs_reason": f"severe laggard (Mansfield RS {rs_m:+.1f})"}
+            return {"rs_pass": False, "rs_reason": f"severe laggard (Mansfield RS {rs_m:+.1f})"}
         if rs_m > soft_floor or trend == "improving":
-            return {"rs_pass": True,
-                    "rs_reason": f"RS acceptable (Mansfield {rs_m:+.1f}, {trend})"}
-        return {"rs_pass": False,
-                "rs_reason": f"lagging market (Mansfield {rs_m:+.1f}, {trend})"}
+            return {"rs_pass": True, "rs_reason": f"RS acceptable (Mansfield {rs_m:+.1f}, {trend})"}
+        return {"rs_pass": False, "rs_reason": f"lagging market (Mansfield {rs_m:+.1f}, {trend})"}
     else:  # bearish setups want weak RS
         if rs_m >= -hard_floor:
-            return {"rs_pass": False,
-                    "rs_reason": f"too strong to short (Mansfield RS {rs_m:+.1f})"}
+            return {
+                "rs_pass": False,
+                "rs_reason": f"too strong to short (Mansfield RS {rs_m:+.1f})",
+            }
         if rs_m < -soft_floor or trend == "deteriorating":
-            return {"rs_pass": True,
-                    "rs_reason": f"weak RS confirms short (Mansfield {rs_m:+.1f})"}
-        return {"rs_pass": False,
-                "rs_reason": f"RS not weak enough (Mansfield {rs_m:+.1f})"}
+            return {"rs_pass": True, "rs_reason": f"weak RS confirms short (Mansfield {rs_m:+.1f})"}
+        return {"rs_pass": False, "rs_reason": f"RS not weak enough (Mansfield {rs_m:+.1f})"}
 
 
-def rs_percentile(rs_values: dict[str, float | None],
-                  benchmark_groups: dict[str, str] | None = None) -> dict[str, int | None]:
+def rs_percentile(
+    rs_values: dict[str, float | None], benchmark_groups: dict[str, str] | None = None
+) -> dict[str, int | None]:
     """
     IBD-style RS rating 1-99 across a scanned universe.
 

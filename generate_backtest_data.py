@@ -11,6 +11,7 @@ from stock_scanner.engine.fundamental import FundamentalEngine
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+
 def run_simulation():
     # 1. Load config and engine
     config_path = "config/scanner_config.yaml"
@@ -28,15 +29,30 @@ def run_simulation():
     phases = [
         {"start": "2023-06-15", "end": "2024-06-15", "as_of": 2022},
         {"start": "2024-06-15", "end": "2025-06-15", "as_of": 2023},
-        {"start": "2025-06-15", "end": "2026-06-15", "as_of": 2024}
+        {"start": "2025-06-15", "end": "2026-06-15", "as_of": 2024},
     ]
 
     tickers = [
-        "AAPL", "MSFT", "GOOGL", "NVDA", "AVGO", "CSCO",
-        "AMZN", "TSLA", "HD", "META", "NFLX",
-        "JPM", "BAC", "V",
-        "JNJ", "LLY", "UNH",
-        "WMT", "PG", "KO"
+        "AAPL",
+        "MSFT",
+        "GOOGL",
+        "NVDA",
+        "AVGO",
+        "CSCO",
+        "AMZN",
+        "TSLA",
+        "HD",
+        "META",
+        "NFLX",
+        "JPM",
+        "BAC",
+        "V",
+        "JNJ",
+        "LLY",
+        "UNH",
+        "WMT",
+        "PG",
+        "KO",
     ]
     logger.info(f"Starting portfolio simulation for 20 tickers: {tickers}")
 
@@ -74,7 +90,9 @@ def run_simulation():
         p_end = pd.Timestamp(phase["end"])
         as_of = phase["as_of"]
 
-        logger.info(f"Simulating Phase {phase_idx+1}: {phase['start']} to {phase['end']} (As Of: {as_of})")
+        logger.info(
+            f"Simulating Phase {phase_idx+1}: {phase['start']} to {phase['end']} (As Of: {as_of})"
+        )
 
         # 1. Run the fundamental screen
         scored_df = engine.analyze_tickers(tickers, as_of_year=as_of)
@@ -109,7 +127,7 @@ def run_simulation():
             holdings[ticker] = {
                 "buy_price": buy_price,
                 "shares": shares,
-                "buy_date": phase_start_day.strftime("%Y-%m-%d") + " 09:30:00"
+                "buy_date": phase_start_day.strftime("%Y-%m-%d") + " 09:30:00",
             }
 
         # Setup benchmark on start date if first phase
@@ -128,11 +146,13 @@ def run_simulation():
             # Benchmark value calculation
             bench_val = benchmark_shares * float(price_df.loc[day, "^GSPC"])
 
-            portfolio_history.append({
-                "date": day.strftime("%Y-%m-%d"),
-                "portfolio_value": port_val,
-                "benchmark_value": bench_val
-            })
+            portfolio_history.append(
+                {
+                    "date": day.strftime("%Y-%m-%d"),
+                    "portfolio_value": port_val,
+                    "benchmark_value": bench_val,
+                }
+            )
 
         # 3. Sell on end date
         next_cash = 0.0
@@ -144,17 +164,19 @@ def run_simulation():
             profit_loss = final_val - allocation
             profit_loss_pct = (sell_price - info["buy_price"]) / info["buy_price"]
 
-            trade_logs.append({
-                "ticker": ticker,
-                "entry_date": info["buy_date"],
-                "exit_date": phase_end_day.strftime("%Y-%m-%d") + " 16:00:00",
-                "entry_price": info["buy_price"],
-                "exit_price": sell_price,
-                "shares": info["shares"],
-                "profit_loss": profit_loss,
-                "profit_loss_pct": profit_loss_pct,
-                "status": "WIN" if profit_loss > 0 else "LOSS"
-            })
+            trade_logs.append(
+                {
+                    "ticker": ticker,
+                    "entry_date": info["buy_date"],
+                    "exit_date": phase_end_day.strftime("%Y-%m-%d") + " 16:00:00",
+                    "entry_price": info["buy_price"],
+                    "exit_price": sell_price,
+                    "shares": info["shares"],
+                    "profit_loss": profit_loss,
+                    "profit_loss_pct": profit_loss_pct,
+                    "status": "WIN" if profit_loss > 0 else "LOSS",
+                }
+            )
 
         current_cash = next_cash
 
@@ -165,22 +187,38 @@ def run_simulation():
     for record in portfolio_history:
         # Portfolio DD
         max_portfolio_value = max(max_portfolio_value, record["portfolio_value"])
-        record["portfolio_drawdown"] = (record["portfolio_value"] - max_portfolio_value) / max_portfolio_value
+        record["portfolio_drawdown"] = (
+            record["portfolio_value"] - max_portfolio_value
+        ) / max_portfolio_value
 
         # Benchmark DD
         max_benchmark_value = max(max_benchmark_value, record["benchmark_value"])
-        record["benchmark_drawdown"] = (record["benchmark_value"] - max_benchmark_value) / max_benchmark_value
+        record["benchmark_drawdown"] = (
+            record["benchmark_value"] - max_benchmark_value
+        ) / max_benchmark_value
 
     # Prepare output JSON structure
     output_data = {
         "initial_capital": initial_capital,
-        "final_capital": portfolio_history[-1]["portfolio_value"] if portfolio_history else initial_capital,
-        "total_return": (portfolio_history[-1]["portfolio_value"] - initial_capital) / initial_capital if portfolio_history else 0.0,
-        "benchmark_return": (portfolio_history[-1]["benchmark_value"] - initial_capital) / initial_capital if portfolio_history else 0.0,
-        "max_drawdown": min([r["portfolio_drawdown"] for r in portfolio_history]) if portfolio_history else 0.0,
-        "benchmark_max_drawdown": min([r["benchmark_drawdown"] for r in portfolio_history]) if portfolio_history else 0.0,
+        "final_capital": portfolio_history[-1]["portfolio_value"]
+        if portfolio_history
+        else initial_capital,
+        "total_return": (portfolio_history[-1]["portfolio_value"] - initial_capital)
+        / initial_capital
+        if portfolio_history
+        else 0.0,
+        "benchmark_return": (portfolio_history[-1]["benchmark_value"] - initial_capital)
+        / initial_capital
+        if portfolio_history
+        else 0.0,
+        "max_drawdown": min([r["portfolio_drawdown"] for r in portfolio_history])
+        if portfolio_history
+        else 0.0,
+        "benchmark_max_drawdown": min([r["benchmark_drawdown"] for r in portfolio_history])
+        if portfolio_history
+        else 0.0,
         "equity_curve": portfolio_history,
-        "trade_logs": trade_logs
+        "trade_logs": trade_logs,
     }
 
     # Save to dashboard directory
@@ -189,6 +227,7 @@ def run_simulation():
         json.dump(output_data, f, indent=4)
 
     logger.info("Simulation complete. Saved results to dashboard/data.json.")
+
 
 if __name__ == "__main__":
     run_simulation()

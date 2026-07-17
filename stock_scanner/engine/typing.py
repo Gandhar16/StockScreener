@@ -21,11 +21,13 @@ BenchmarkData: TypeAlias = pd.DataFrame  # benchmark price data
 SignalType: TypeAlias = Literal["BUY", "SELL", "HOLD", "WATCH-LONG", "WATCH-SHORT"]
 ConvictionLevel: TypeAlias = Literal["HIGH", "MEDIUM", "LOW"]
 
+
 # Configuration types
 class PhaseConfig(TypedDict):
     start: str
     end: str
     as_of: int
+
 
 ScannerMode: TypeAlias = Literal["market_scan", "single_stock"]
 BenchmarkMap: TypeAlias = dict[str, str]  # ticker suffix -> benchmark symbol
@@ -34,6 +36,7 @@ BenchmarkMap: TypeAlias = dict[str, str]  # ticker suffix -> benchmark symbol
 # Fundamental data structures
 class FundamentalMetrics(TypedDict):
     """Core fundamental metrics from FinanceToolkit."""
+
     current_ratio: NotRequired[float]
     debt_to_equity: NotRequired[float]
     pe_ratio: NotRequired[float]
@@ -49,6 +52,7 @@ class FundamentalMetrics(TypedDict):
 
 class TechnicalMetrics(TypedDict):
     """Technical analysis metrics."""
+
     sma_20: NotRequired[float]
     sma_50: NotRequired[float]
     sma_200: NotRequired[float]
@@ -68,6 +72,7 @@ class TechnicalMetrics(TypedDict):
 
 class MarketStructure(TypedDict):
     """Market structure analysis."""
+
     trend: NotRequired[Literal["UP", "DOWN", "SIDEWAYS"]]
     higher_highs: NotRequired[bool]
     higher_lows: NotRequired[bool]
@@ -80,6 +85,7 @@ class MarketStructure(TypedDict):
 
 class PatternSignal(TypedDict):
     """Detected chart pattern."""
+
     name: str
     type: Literal["bullish", "bearish", "neutral"]
     confidence: float
@@ -91,6 +97,7 @@ class PatternSignal(TypedDict):
 
 class EntrySignal(TypedDict):
     """Trade entry signal."""
+
     ticker: str
     signal: SignalType
     price: float
@@ -107,6 +114,7 @@ class EntrySignal(TypedDict):
 
 class ScoredStock(TypedDict):
     """Stock with fundamental scores."""
+
     ticker: str
     total_score: float
     graham_safety: float
@@ -133,9 +141,11 @@ class ScoredStock(TypedDict):
 
 # Result types
 ScanResult = list[ScoredStock]
+
+
 class EquityCall(TypedDict):
     ticker: str
-    type: Literal['long_term', 'swing', 'sell']
+    type: Literal["long_term", "swing", "sell"]
     score: float
     conviction: ConvictionLevel
     entry: NotRequired[float]
@@ -157,6 +167,7 @@ class PhaseResult(TypedDict):
     results: list[ScoredStock]
     duration_seconds: float
     timestamp: datetime
+
 
 class PipelineResult(TypedDict):
     phases: list[PhaseResult]

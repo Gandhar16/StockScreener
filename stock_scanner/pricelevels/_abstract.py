@@ -4,6 +4,7 @@ import pandas as pd
 PEAK = 1
 VALLEY = -1
 
+
 def identify_initial_pivot(X, up_thresh, down_thresh):
     """
     Determines the first pivot (peak or valley) for the ZigZag algorithm.
@@ -37,12 +38,13 @@ def identify_initial_pivot(X, up_thresh, down_thresh):
     t_n = len(X) - 1
     return VALLEY if x_0 < X[t_n] else PEAK
 
+
 def peak_valley_pivots(X, up_thresh, down_thresh):
     """
     Find the peaks and valleys of a series.
     """
     if down_thresh > 0:
-        raise ValueError('The down_thresh must be negative.')
+        raise ValueError("The down_thresh must be negative.")
 
     initial_pivot = identify_initial_pivot(X, up_thresh, down_thresh)
     t_n = len(X)
@@ -81,13 +83,12 @@ def peak_valley_pivots(X, up_thresh, down_thresh):
 
     return pivots
 
+
 from .exceptions import InvalidArgumentException, InvalidParameterException
 
 
 class BaseLevelFinder:
-
-    def __init__(self, merge_distance, merge_percent=None, level_selector='median'):
-
+    def __init__(self, merge_distance, merge_percent=None, level_selector="median"):
         self._merge_distance = merge_distance
         self._merge_percent = merge_percent
 
@@ -105,12 +106,12 @@ class BaseLevelFinder:
 
     def fit(self, data):
         if isinstance(data, pd.DataFrame):
-            X = data['Close'].values
+            X = data["Close"].values
         elif isinstance(data, np.array):
             X = data
         else:
             raise InvalidArgumentException(
-                'Only np.array and pd.DataFrame are supported in `fit` method'
+                "Only np.array and pd.DataFrame are supported in `fit` method"
             )
 
         prices = self._find_potential_level_prices(X)
@@ -133,9 +134,15 @@ class BaseLevelFinder:
 
 
 class BaseZigZagLevels(BaseLevelFinder):
-
-    def __init__(self, peak_percent_delta, merge_distance, merge_percent=None, min_bars_between_peaks=0, peaks='All',
-                 level_selector='median'):
+    def __init__(
+        self,
+        peak_percent_delta,
+        merge_distance,
+        merge_percent=None,
+        min_bars_between_peaks=0,
+        peaks="All",
+        level_selector="median",
+    ):
         self._peak_percent_delta = peak_percent_delta / 100
         self._min_bars_between_peaks = min_bars_between_peaks
         self._peaks = peaks
@@ -149,18 +156,18 @@ class BaseZigZagLevels(BaseLevelFinder):
         return pivot_prices
 
     def _get_pivot_indexes(self, pivots):
-        if self._peaks == 'All':
+        if self._peaks == "All":
             indexes = np.where(np.abs(pivots) == 1)
-        elif self._peaks == 'High':
+        elif self._peaks == "High":
             indexes = np.where(pivots == 1)
-        elif self._peaks == 'Low':
+        elif self._peaks == "Low":
             indexes = np.where(pivots == -1)
         else:
-            raise InvalidParameterException(
-                'Peaks argument should be one of: `All`, `High`, `Low`'
-            )
+            raise InvalidParameterException("Peaks argument should be one of: `All`, `High`, `Low`")
 
-        return indexes if self._min_bars_between_peaks == 0 else self._filter_by_bars_between(indexes)
+        return (
+            indexes if self._min_bars_between_peaks == 0 else self._filter_by_bars_between(indexes)
+        )
 
     def _filter_by_bars_between(self, indexes):
         indexes = np.sort(indexes).reshape(-1, 1)

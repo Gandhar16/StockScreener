@@ -71,7 +71,7 @@ def sample_config():
             "roic": [0.02, 0.29],
             "operating_margin": [0.07, 0.32],
             "fcf_to_net_income": [0.5, 1.5],
-        }
+        },
     }
 
 
@@ -83,13 +83,16 @@ def sample_ohlcv():
     returns = np.random.normal(0.0005, 0.015, 252)
     close = 100 * (1 + returns).cumprod()
 
-    df = pd.DataFrame({
-        "Open": close * (1 + np.random.normal(0, 0.002, 252)),
-        "High": close * (1 + np.abs(np.random.normal(0, 0.01, 252))),
-        "Low": close * (1 - np.abs(np.random.normal(0, 0.01, 252))),
-        "Close": close,
-        "Volume": np.random.lognormal(15, 0.5, 252).astype(int),
-    }, index=dates)
+    df = pd.DataFrame(
+        {
+            "Open": close * (1 + np.random.normal(0, 0.002, 252)),
+            "High": close * (1 + np.abs(np.random.normal(0, 0.01, 252))),
+            "Low": close * (1 - np.abs(np.random.normal(0, 0.01, 252))),
+            "Close": close,
+            "Volume": np.random.lognormal(15, 0.5, 252).astype(int),
+        },
+        index=dates,
+    )
 
     # Ensure High >= Close >= Low
     df["High"] = df[["High", "Close"]].max(axis=1)

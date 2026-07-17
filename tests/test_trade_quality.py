@@ -137,7 +137,8 @@ class TestSetupScore:
 
     def test_custom_weights(self):
         res = setup_score(
-            pattern_score=100, rr=1.0,
+            pattern_score=100,
+            rr=1.0,
             config={"weights": {"pattern": 0.9, "rr": 0.1}},
         )
         assert res["setup_score"] == 90

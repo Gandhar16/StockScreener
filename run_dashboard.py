@@ -7,12 +7,15 @@ from threading import Timer
 PORT = 8080
 DIRECTORY = "."
 
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
+
 def open_browser():
     webbrowser.open(f"http://localhost:{PORT}/dashboard/index.html")
+
 
 def main():
     # Print welcome message
@@ -30,6 +33,7 @@ def main():
         sys.exit(0)
     except Exception:
         pass
+
 
 if __name__ == "__main__":
     main()

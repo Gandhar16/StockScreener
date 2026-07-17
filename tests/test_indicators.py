@@ -50,8 +50,8 @@ class TestEMA:
     def test_ema_follows_trend(self):
         close = pd.Series(_trending_up())
         e = ema(close, 20)
-        assert e.iloc[-1] < close.iloc[-1]        # lags a rising series
-        assert e.iloc[-1] > e.iloc[-50]           # but rises with it
+        assert e.iloc[-1] < close.iloc[-1]  # lags a rising series
+        assert e.iloc[-1] > e.iloc[-50]  # but rises with it
 
     def test_short_history_is_nan(self):
         e = ema(pd.Series([1.0, 2.0, 3.0]), 20)
@@ -152,7 +152,7 @@ class TestPctFrom52wHigh:
         assert pct_from_52w_high(close) == pytest.approx(0.0)
 
     def test_below_high(self):
-        up = _trending_up(200, 100, 0.5)     # peaks at 199.5
+        up = _trending_up(200, 100, 0.5)  # peaks at 199.5
         down = np.linspace(up[-1], up[-1] * 0.8, 60)
         close = pd.Series(np.concatenate([up, down]))
         v = pct_from_52w_high(close)
@@ -184,9 +184,9 @@ class TestRsiDivergence:
     def test_bearish_divergence(self):
         # Price: two peaks, second higher. Momentum into the second peak weaker
         # (slower ascent) so RSI prints a lower high.
-        first_up = np.linspace(100, 130, 25)          # steep run
+        first_up = np.linspace(100, 130, 25)  # steep run
         pull = np.linspace(130, 112, 15)
-        second_up = np.linspace(112, 133, 40)         # higher high, weak slope
+        second_up = np.linspace(112, 133, 40)  # higher high, weak slope
         close = pd.Series(np.concatenate([np.full(30, 100.0), first_up, pull, second_up]))
         r = rsi(close)
         assert rsi_divergence(close, r, lookback=90) in ("bearish", None)
@@ -206,18 +206,41 @@ class TestComputeIndicators:
         df = _make_df(_trending_up())
         ind = compute_indicators(df)
         for key in (
-            "bb_percent_b", "bb_squeeze", "adx", "plus_di", "minus_di",
-            "trend_strength", "stoch_k", "stoch_d", "obv_trend", "rvol",
-            "pct_from_52w_high", "ema20", "ema50", "ema200",
-            "ema_stack_bull", "ema_stack_bear", "ema50_slope", "rsi_divergence",
+            "bb_percent_b",
+            "bb_squeeze",
+            "adx",
+            "plus_di",
+            "minus_di",
+            "trend_strength",
+            "stoch_k",
+            "stoch_d",
+            "obv_trend",
+            "rvol",
+            "pct_from_52w_high",
+            "ema20",
+            "ema50",
+            "ema200",
+            "ema_stack_bull",
+            "ema_stack_bear",
+            "ema50_slope",
+            "rsi_divergence",
         ):
             assert key in ind, f"missing {key}"
 
     def test_old_keys_unchanged(self):
         df = _make_df(_trending_up())
         ind = compute_indicators(df)
-        for key in ("price", "rsi", "macd_hist", "ma50", "ma200",
-                    "above_50", "above_200", "atr", "vol_contracting"):
+        for key in (
+            "price",
+            "rsi",
+            "macd_hist",
+            "ma50",
+            "ma200",
+            "above_50",
+            "above_200",
+            "atr",
+            "vol_contracting",
+        ):
             assert key in ind
 
     def test_uptrend_classification(self):

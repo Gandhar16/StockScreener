@@ -23,20 +23,18 @@ def sample_ohlc_data():
     open_p = close + np.random.normal(0, 0.2, 100)
     volume = np.random.randint(100000, 500000, 100)
 
-    df = pd.DataFrame({
-        "Open": open_p,
-        "High": high,
-        "Low": low,
-        "Close": close,
-        "Volume": volume
-    }, index=dates)
+    df = pd.DataFrame(
+        {"Open": open_p, "High": high, "Low": low, "Close": close, "Volume": volume}, index=dates
+    )
 
     return df
+
 
 def test_engine_initialization():
     engine = MarketStructureEngine(window_size=3, tolerance_pct=0.02)
     assert engine.window_size == 3
     assert engine.tolerance_pct == 0.02
+
 
 def test_find_pivots(sample_ohlc_data):
     engine = MarketStructureEngine(window_size=5)
@@ -55,13 +53,18 @@ def test_find_pivots(sample_ohlc_data):
         assert "date" in p
         assert "volume" in p
 
+
 def test_build_horizontal_zones(sample_ohlc_data):
     engine = MarketStructureEngine(window_size=5, tolerance_pct=0.03)
     p_highs, p_lows = engine._find_pivots(sample_ohlc_data)
     current_price = float(sample_ohlc_data["Close"].iloc[-1])
 
-    support_zones = engine._build_horizontal_zones(sample_ohlc_data, p_lows, "support", current_price)
-    resistance_zones = engine._build_horizontal_zones(sample_ohlc_data, p_highs, "resistance", current_price)
+    support_zones = engine._build_horizontal_zones(
+        sample_ohlc_data, p_lows, "support", current_price
+    )
+    resistance_zones = engine._build_horizontal_zones(
+        sample_ohlc_data, p_highs, "resistance", current_price
+    )
 
     assert isinstance(support_zones, list)
     assert isinstance(resistance_zones, list)
@@ -79,6 +82,7 @@ def test_build_horizontal_zones(sample_ohlc_data):
         assert "distance_pct" in zone
         assert "strength_score" in zone
 
+
 def test_detect_trendlines(sample_ohlc_data):
     # Construct trendline validation test by explicitly creating local valleys on a line
     engine = MarketStructureEngine(window_size=5)
@@ -94,13 +98,16 @@ def test_detect_trendlines(sample_ohlc_data):
     lows[40] = 0.5 * 40 + 50.0  # 70.0
     lows[70] = 0.5 * 70 + 50.0  # 85.0
 
-    df = pd.DataFrame({
-        "Open": [80.0] * 100,
-        "High": [120.0] * 100,
-        "Low": lows,
-        "Close": [90.0] * 100,
-        "Volume": [100000] * 100
-    }, index=dates)
+    df = pd.DataFrame(
+        {
+            "Open": [80.0] * 100,
+            "High": [120.0] * 100,
+            "Low": lows,
+            "Close": [90.0] * 100,
+            "Volume": [100000] * 100,
+        },
+        index=dates,
+    )
 
     current_price = 90.0
     trendlines = engine._detect_trendlines(df, [], "support", current_price)
@@ -112,6 +119,7 @@ def test_detect_trendlines(sample_ohlc_data):
     assert pytest.approx(best_tl["slope"], 0.01) == 0.5
     assert pytest.approx(best_tl["intercept"], 0.01) == 50.0
     assert best_tl["touch_count"] >= 3
+
 
 def test_analyze_structure(sample_ohlc_data):
     engine = MarketStructureEngine(window_size=5)
@@ -129,6 +137,7 @@ def test_analyze_structure(sample_ohlc_data):
 
     # Verify context is a string
     assert isinstance(analysis["context"], str)
+
 
 def test_empty_dataframe():
     engine = MarketStructureEngine()

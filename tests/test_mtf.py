@@ -112,6 +112,5 @@ class TestMtfAlignment:
         assert res["mtf_score"] >= 55
 
     def test_config_threshold_respected(self):
-        res = analyze_mtf(_daily_df(_uptrend()), "bullish",
-                          config={"aligned_threshold": 101})
+        res = analyze_mtf(_daily_df(_uptrend()), "bullish", config={"aligned_threshold": 101})
         assert res["mtf_aligned"] is False

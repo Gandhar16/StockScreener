@@ -15,23 +15,28 @@ Trade-quality gates a professional applies before taking any setup:
   component is unavailable.
 """
 
-
 import pandas as pd
 
 DEFAULT_SETUP_WEIGHTS = {
     "pattern": 0.35,
-    "mtf":     0.20,
-    "rs":      0.15,
-    "volume":  0.15,
-    "rr":      0.15,
+    "mtf": 0.20,
+    "rs": 0.15,
+    "volume": 0.15,
+    "rr": 0.15,
 }
 
 SETUP_GRADES = [(80, "A+"), (70, "A"), (58, "B"), (45, "C")]
 
 
-def choose_stop(entry: float, pattern_stop: float | None, atr: float | None,
-                direction: str = "bullish", atr_mult: float = 2.0,
-                min_stop_pct: float = 0.02, max_stop_pct: float = 0.10) -> dict:
+def choose_stop(
+    entry: float,
+    pattern_stop: float | None,
+    atr: float | None,
+    direction: str = "bullish",
+    atr_mult: float = 2.0,
+    min_stop_pct: float = 0.02,
+    max_stop_pct: float = 0.10,
+) -> dict:
     """
     Pick the working stop: the tighter of the structural (pattern) stop and
     an ATR stop — but never inside min_stop_pct of entry (noise guard), and
@@ -61,9 +66,7 @@ def choose_stop(entry: float, pattern_stop: float | None, atr: float | None,
     # Tightest stop that still respects the noise guard; if all are inside
     # the noise band, widen to exactly min_stop_pct.
     candidates.sort(key=lambda c: c[0])
-    dist_pct, stop, source = next(
-        (c for c in candidates if c[0] >= min_stop_pct), candidates[-1]
-    )
+    dist_pct, stop, source = next((c for c in candidates if c[0] >= min_stop_pct), candidates[-1])
     if dist_pct < min_stop_pct:
         dist_pct = min_stop_pct
         stop = entry * (1 - min_stop_pct) if is_bull else entry * (1 + min_stop_pct)
@@ -73,12 +76,12 @@ def choose_stop(entry: float, pattern_stop: float | None, atr: float | None,
         stop = entry * (1 - max_stop_pct) if is_bull else entry * (1 + max_stop_pct)
         source = f"{source}+clamped"
 
-    return {"stop": round(stop, 4), "stop_source": source,
-            "stop_pct": round(dist_pct, 4)}
+    return {"stop": round(stop, 4), "stop_source": source, "stop_pct": round(dist_pct, 4)}
 
 
-def risk_reward(entry: float, stop: float | None, target: float | None,
-                direction: str = "bullish") -> float | None:
+def risk_reward(
+    entry: float, stop: float | None, target: float | None, direction: str = "bullish"
+) -> float | None:
     """Reward-per-unit-risk. None when inputs are missing or degenerate."""
     if not entry or stop is None or target is None:
         return None
@@ -98,17 +101,20 @@ def passes_rr_gate(rr: float | None, min_rr: float = 2.0) -> bool | None:
     return rr >= min_rr
 
 
-def position_size(capital: float, risk_pct: float, entry: float,
-                  stop: float | None,
-                  max_position_pct: float = 0.15) -> dict:
+def position_size(
+    capital: float,
+    risk_pct: float,
+    entry: float,
+    stop: float | None,
+    max_position_pct: float = 0.15,
+) -> dict:
     """
     Fixed-fractional sizing: shares = (capital * risk_pct) / per-share risk,
     capped so the position notional never exceeds max_position_pct of capital.
 
     Returns {shares, position_value, capital_at_risk, capped}.
     """
-    empty = {"shares": 0, "position_value": 0.0, "capital_at_risk": 0.0,
-             "capped": False}
+    empty = {"shares": 0, "position_value": 0.0, "capital_at_risk": 0.0, "capped": False}
     if capital <= 0 or entry is None or entry <= 0 or stop is None:
         return empty
     per_share_risk = abs(entry - stop)
@@ -171,13 +177,15 @@ def _rr_component(rr: float | None) -> float | None:
     return (rr - 1.0) / 2.0 * 100.0  # linear 1:1→0, 3:1→100
 
 
-def setup_score(pattern_score: float | None,
-                mtf: dict | None = None,
-                rs: dict | None = None,
-                indicators: dict | None = None,
-                rr: float | None = None,
-                pattern: dict | None = None,
-                config: dict | None = None) -> dict:
+def setup_score(
+    pattern_score: float | None,
+    mtf: dict | None = None,
+    rs: dict | None = None,
+    indicators: dict | None = None,
+    rr: float | None = None,
+    pattern: dict | None = None,
+    config: dict | None = None,
+) -> dict:
     """
     Composite 0-100 trade setup score.
 
@@ -200,10 +208,10 @@ def setup_score(pattern_score: float | None,
 
     components = {
         "pattern": float(pattern_score) if pattern_score is not None else None,
-        "mtf":     (mtf or {}).get("mtf_score"),
-        "rs":      rs_component,
-        "volume":  _volume_component(indicators, pattern),
-        "rr":      _rr_component(rr),
+        "mtf": (mtf or {}).get("mtf_score"),
+        "rs": rs_component,
+        "volume": _volume_component(indicators, pattern),
+        "rr": _rr_component(rr),
     }
 
     earned, available = 0.0, 0.0
@@ -217,8 +225,12 @@ def setup_score(pattern_score: float | None,
         available += w
 
     if available <= 0:
-        return {"setup_score": None, "setup_grade": None,
-                "components": components, "missing": missing}
+        return {
+            "setup_score": None,
+            "setup_grade": None,
+            "components": components,
+            "missing": missing,
+        }
 
     score = round(earned / available)
     grade = "D"
@@ -227,15 +239,23 @@ def setup_score(pattern_score: float | None,
             grade = label
             break
 
-    return {"setup_score": score, "setup_grade": grade,
-            "components": components, "missing": missing}
+    return {
+        "setup_score": score,
+        "setup_grade": grade,
+        "components": components,
+        "missing": missing,
+    }
 
 
-def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
-                        indicators: dict,
-                        bench_close: pd.Series | None = None,
-                        fetch_benchmark: bool = True,
-                        config: dict | None = None) -> dict:
+def enrich_trade_signal(
+    sig: dict,
+    df: pd.DataFrame,
+    ticker: str,
+    indicators: dict,
+    bench_close: pd.Series | None = None,
+    fetch_benchmark: bool = True,
+    config: dict | None = None,
+) -> dict:
     """
     Enrich a best-signal dict (in place) with the full trader-grade context:
 
@@ -254,8 +274,11 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
     from .relative_strength import benchmark_for, fetch_benchmark_history, mansfield_rs, rs_gate
 
     cfg = config or {}
-    direction = "bullish" if sig.get("type") == "bullish" or \
-        sig.get("signal") in ("BUY", "BUY?", "WATCH-LONG") else "bearish"
+    direction = (
+        "bullish"
+        if sig.get("type") == "bullish" or sig.get("signal") in ("BUY", "BUY?", "WATCH-LONG")
+        else "bearish"
+    )
 
     entry = sig.get("entry_price")
     target = sig.get("t1") or sig.get("swing_target")
@@ -263,7 +286,10 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
     # 1. Stop selection (pattern vs ATR, noise-guarded, clamped)
     gates = cfg.get("gates", {})
     stop_res = choose_stop(
-        entry, sig.get("stop_loss"), indicators.get("atr"), direction,
+        entry,
+        sig.get("stop_loss"),
+        indicators.get("atr"),
+        direction,
         atr_mult=gates.get("atr_stop_mult", 2.0),
         min_stop_pct=gates.get("min_stop_pct", 0.02),
         max_stop_pct=gates.get("max_stop_pct", 0.10),
@@ -287,8 +313,7 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
     sig["mtf_reasons"] = mtf_res.get("mtf_reasons")
 
     # 3. Relative strength vs benchmark
-    rs = {"rs_mansfield": None, "rs_trend": None,
-          "rs_line_slope_20d": None, "rs_new_high": None}
+    rs = {"rs_mansfield": None, "rs_trend": None, "rs_line_slope_20d": None, "rs_new_high": None}
     try:
         if bench_close is None and fetch_benchmark:
             bench_close = fetch_benchmark_history(
@@ -299,9 +324,12 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
             rs = mansfield_rs(df["Close"], bench_close)
     except Exception:
         pass
-    gate = rs_gate(direction, rs,
-                   soft_floor=cfg.get("rs", {}).get("soft_floor", -5.0),
-                   hard_floor=cfg.get("rs", {}).get("hard_floor", -20.0))
+    gate = rs_gate(
+        direction,
+        rs,
+        soft_floor=cfg.get("rs", {}).get("soft_floor", -5.0),
+        hard_floor=cfg.get("rs", {}).get("hard_floor", -20.0),
+    )
     sig["rs_mansfield"] = rs.get("rs_mansfield")
     sig["rs_trend"] = rs.get("rs_trend")
     sig["rs_new_high"] = rs.get("rs_new_high")
@@ -309,8 +337,15 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
     sig["rs_reason"] = gate.get("rs_reason")
 
     # 4. Composite setup score
-    ss = setup_score(sig.get("pattern_score"), mtf_res, rs, indicators,
-                     sig.get("risk_reward"), sig, cfg.get("setup_score"))
+    ss = setup_score(
+        sig.get("pattern_score"),
+        mtf_res,
+        rs,
+        indicators,
+        sig.get("risk_reward"),
+        sig,
+        cfg.get("setup_score"),
+    )
     sig["setup_score"] = ss["setup_score"]
     sig["setup_grade"] = ss["setup_grade"]
     sig["setup_components"] = ss["components"]
@@ -319,7 +354,8 @@ def enrich_trade_signal(sig: dict, df: pd.DataFrame, ticker: str,
     ps = position_size(
         gates.get("account_size", 100_000.0),
         gates.get("risk_per_trade_pct", 0.01),
-        entry, sig.get("stop_loss"),
+        entry,
+        sig.get("stop_loss"),
         max_position_pct=gates.get("max_position_pct", 0.15),
     )
     sig["position_shares"] = ps["shares"]

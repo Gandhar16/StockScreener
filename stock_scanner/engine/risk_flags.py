@@ -5,10 +5,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-def check_red_flags(
-    metrics: dict[str, Any],
-    sector: str
-) -> tuple[bool, float, list[str]]:
+
+def check_red_flags(metrics: dict[str, Any], sector: str) -> tuple[bool, float, list[str]]:
     """
     Checks for structural, financial, and accounting red flags.
     Returns:
@@ -52,7 +50,9 @@ def check_red_flags(
         equity_mult = metrics.get("equity_multiplier_ttm", 1.0)
         if not pd.isna(equity_mult) and equity_mult > 20.0:
             is_disqualified = True
-            flags.append(f"Dangerous Bank Leverage: Equity Multiplier of {equity_mult:.2f} exceeds 20.0")
+            flags.append(
+                f"Dangerous Bank Leverage: Equity Multiplier of {equity_mult:.2f} exceeds 20.0"
+            )
         elif not pd.isna(equity_mult) and equity_mult > 15.0:
             total_penalty += 20.0
             flags.append(f"High Bank Leverage: Equity Multiplier of {equity_mult:.2f} exceeds 15.0")
@@ -69,7 +69,9 @@ def check_red_flags(
 
         if not pd.isna(net_debt_ebitda) and net_debt_ebitda > 5.0:
             total_penalty += 20.0
-            flags.append(f"High Net Debt/EBITDA: leverage ratio of {net_debt_ebitda:.2f} exceeds 5.0")
+            flags.append(
+                f"High Net Debt/EBITDA: leverage ratio of {net_debt_ebitda:.2f} exceeds 5.0"
+            )
 
     # 4. Weak Interest Coverage (only for non-financials)
     if not is_financial:
@@ -77,18 +79,29 @@ def check_red_flags(
         if not pd.isna(interest_cov) and interest_cov < 1.5:
             if interest_cov < 0:
                 total_penalty += 25.0
-                flags.append("Severe Interest Coverage: Negative operating income relative to interest costs")
+                flags.append(
+                    "Severe Interest Coverage: Negative operating income relative to interest costs"
+                )
             else:
                 total_penalty += 20.0
-                flags.append(f"Weak Interest Coverage: Interest coverage of {interest_cov:.2f} is under 1.5")
+                flags.append(
+                    f"Weak Interest Coverage: Interest coverage of {interest_cov:.2f} is under 1.5"
+                )
 
     # 5. Accounting Quality / Earnings Quality (Skip for Financials/Banks)
     if not is_financial:
         fcf_net_inc_3y = metrics.get("fcf_to_net_income_3y_avg", 1.0)
         net_inc_3y = metrics.get("net_income_3y_avg", 1.0)
-        if not pd.isna(fcf_net_inc_3y) and fcf_net_inc_3y < 0.3 and not pd.isna(net_inc_3y) and net_inc_3y > 0:
+        if (
+            not pd.isna(fcf_net_inc_3y)
+            and fcf_net_inc_3y < 0.3
+            and not pd.isna(net_inc_3y)
+            and net_inc_3y > 0
+        ):
             total_penalty += 15.0
-            flags.append(f"Poor Earnings Quality: 3-year FCF/Net Income of {fcf_net_inc_3y:.2f} suggests net income not backed by cash flow")
+            flags.append(
+                f"Poor Earnings Quality: 3-year FCF/Net Income of {fcf_net_inc_3y:.2f} suggests net income not backed by cash flow"
+            )
 
     # 5b. High Accruals (Skip for Financials/Banks): earnings far ahead of
     # operating cash relative to the asset base — classic Sloan-accruals risk.
@@ -96,13 +109,17 @@ def check_red_flags(
         accruals = metrics.get("accruals_ratio", float("nan"))
         if not pd.isna(accruals) and accruals > 0.10:
             total_penalty += 15.0
-            flags.append(f"High Accruals: (NI - OCF)/Assets of {accruals:.2f} exceeds 0.10 — earnings not cash-backed")
+            flags.append(
+                f"High Accruals: (NI - OCF)/Assets of {accruals:.2f} exceeds 0.10 — earnings not cash-backed"
+            )
 
     # 6. Excessive Dilution
     shares_growth = metrics.get("shares_growth_3y", 0.0)
-    if not pd.isna(shares_growth) and shares_growth > 0.15: # >15% over 3 years (~5% CAGR)
+    if not pd.isna(shares_growth) and shares_growth > 0.15:  # >15% over 3 years (~5% CAGR)
         total_penalty += 15.0
-        flags.append(f"Excessive Dilution: Outstanding shares increased by {shares_growth*100:.1f}% over 3 years")
+        flags.append(
+            f"Excessive Dilution: Outstanding shares increased by {shares_growth*100:.1f}% over 3 years"
+        )
 
     # 7. Liquidity Stress / Maturity (only for non-financials)
     if not is_financial:

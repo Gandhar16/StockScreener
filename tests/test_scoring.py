@@ -120,7 +120,17 @@ class TestFactorScores:
         }
 
         config = {
-            "relevant_metrics": ["current_ratio", "debt_to_equity", "pe_ratio", "revenue_growth_yoy", "eps_growth_yoy", "rd_intensity", "roic", "operating_margin", "fcf_to_net_income"],
+            "relevant_metrics": [
+                "current_ratio",
+                "debt_to_equity",
+                "pe_ratio",
+                "revenue_growth_yoy",
+                "eps_growth_yoy",
+                "rd_intensity",
+                "roic",
+                "operating_margin",
+                "fcf_to_net_income",
+            ],
             "irrelevant_metrics": [],
             "preferred_valuation_methods": ["price_to_earnings"],
             "scoring_ranges": {
@@ -133,7 +143,7 @@ class TestFactorScores:
                 "roic": [0.02, 0.29],
                 "operating_margin": [0.07, 0.32],
                 "fcf_to_net_income": [0.5, 1.5],
-            }
+            },
         }
 
         scores, details = calculate_factor_scores(metrics, config)
@@ -169,7 +179,17 @@ class TestFactorScoresEdgeCases:
         }
 
         config = {
-            "relevant_metrics": ["current_ratio", "debt_to_equity", "pe_ratio", "revenue_growth_yoy", "eps_growth_yoy", "rd_intensity", "roic", "operating_margin", "fcf_to_net_income"],
+            "relevant_metrics": [
+                "current_ratio",
+                "debt_to_equity",
+                "pe_ratio",
+                "revenue_growth_yoy",
+                "eps_growth_yoy",
+                "rd_intensity",
+                "roic",
+                "operating_margin",
+                "fcf_to_net_income",
+            ],
             "irrelevant_metrics": [],
             "preferred_valuation_methods": ["price_to_earnings"],
             "scoring_ranges": {
@@ -182,7 +202,7 @@ class TestFactorScoresEdgeCases:
                 "roic": [0.02, 0.29],
                 "operating_margin": [0.07, 0.32],
                 "fcf_to_net_income": [0.5, 1.5],
-            }
+            },
         }
 
         _scores, _details = calculate_factor_scores(metrics, config)

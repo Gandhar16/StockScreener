@@ -128,8 +128,7 @@ class TestRsPercentile:
 
     def test_per_benchmark_groups(self):
         vals = {"NVDA": 20.0, "INTC": -20.0, "TCS.NS": 5.0, "WIPRO.NS": -5.0}
-        groups = {"NVDA": "^GSPC", "INTC": "^GSPC",
-                  "TCS.NS": "^NSEI", "WIPRO.NS": "^NSEI"}
+        groups = {"NVDA": "^GSPC", "INTC": "^GSPC", "TCS.NS": "^NSEI", "WIPRO.NS": "^NSEI"}
         pct = rs_percentile(vals, groups)
         # each group ranked independently: both group leaders share top rank
         assert pct["NVDA"] == pct["TCS.NS"]

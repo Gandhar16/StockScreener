@@ -12,22 +12,27 @@ def sample_config():
     return ScannerConfig(
         mode="market_scan",
         tickers=["AAPL", "MSFT", "PENNY", "LOWVOL"],
-        filters={
-            "min_market_cap": 1_000_000,
-            "min_price": 5.0,
-            "min_volume": 100_000
-        }
+        filters={"min_market_cap": 1_000_000, "min_price": 5.0, "min_volume": 100_000},
     )
+
 
 @patch("yfinance.download")
 @pytest.mark.skip(reason="Provider API changed to use yfinance")
 def test_fetch_and_filter_tickers(mock_download, sample_config):
     # Mocking historical daily data from yfinance.download
     # Multi-index columns: (Metric, Ticker)
-    columns = pd.MultiIndex.from_tuples([
-        ("Close", "AAPL"), ("Close", "MSFT"), ("Close", "PENNY"), ("Close", "LOWVOL"),
-        ("Volume", "AAPL"), ("Volume", "MSFT"), ("Volume", "PENNY"), ("Volume", "LOWVOL")
-    ])
+    columns = pd.MultiIndex.from_tuples(
+        [
+            ("Close", "AAPL"),
+            ("Close", "MSFT"),
+            ("Close", "PENNY"),
+            ("Close", "LOWVOL"),
+            ("Volume", "AAPL"),
+            ("Volume", "MSFT"),
+            ("Volume", "PENNY"),
+            ("Volume", "LOWVOL"),
+        ]
+    )
 
     dates = pd.date_range(end="2026-06-12", periods=5)
     data = [

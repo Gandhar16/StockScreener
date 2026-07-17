@@ -13,7 +13,6 @@ the alignment is None (pass-through), never a fail — critical for young
 NSE listings.
 """
 
-
 import pandas as pd
 
 from .indicators import ema, macd, rsi, sma
@@ -25,8 +24,8 @@ MIN_WEEKLY_BARS = 15
 DEFAULT_WEIGHTS = {
     "above_ema10w": 30,
     "above_sma30w": 25,
-    "macd_w":       25,
-    "rsi_w":        20,
+    "macd_w": 25,
+    "rsi_w": 20,
 }
 DEFAULT_ALIGNED_THRESHOLD = 55
 
@@ -95,8 +94,7 @@ def weekly_state(weekly_df: pd.DataFrame) -> dict | None:
     }
 
 
-def mtf_alignment(direction: str, weekly: dict | None,
-                  config: dict | None = None) -> dict:
+def mtf_alignment(direction: str, weekly: dict | None, config: dict | None = None) -> dict:
     """
     Score how well a daily setup aligns with the weekly trend.
 
@@ -111,8 +109,11 @@ def mtf_alignment(direction: str, weekly: dict | None,
     threshold = cfg.get("aligned_threshold", DEFAULT_ALIGNED_THRESHOLD)
 
     if weekly is None:
-        return {"mtf_score": None, "mtf_aligned": None,
-                "mtf_reasons": ["insufficient weekly history"]}
+        return {
+            "mtf_score": None,
+            "mtf_aligned": None,
+            "mtf_reasons": ["insufficient weekly history"],
+        }
 
     is_bull = direction == "bullish"
     reasons = []
@@ -128,8 +129,9 @@ def mtf_alignment(direction: str, weekly: dict | None,
             earned += w
             reasons.append("price %s 10-week EMA" % ("above" if is_bull else "below"))
         else:
-            reasons.append("price %s 10-week EMA (against setup)"
-                           % ("below" if is_bull else "above"))
+            reasons.append(
+                "price %s 10-week EMA (against setup)" % ("below" if is_bull else "above")
+            )
 
     # 2. Price vs 30-week SMA (Weinstein stage proxy); skipped + renormalized
     #    when < 30 weeks of history.
@@ -141,8 +143,9 @@ def mtf_alignment(direction: str, weekly: dict | None,
             earned += w
             reasons.append("price %s 30-week SMA" % ("above" if is_bull else "below"))
         else:
-            reasons.append("price %s 30-week SMA (against setup)"
-                           % ("below" if is_bull else "above"))
+            reasons.append(
+                "price %s 30-week SMA (against setup)" % ("below" if is_bull else "above")
+            )
 
     # 3. Weekly MACD momentum: histogram on the right side OR curling that way
     hist_w = weekly.get("macd_hist_w")
@@ -170,8 +173,11 @@ def mtf_alignment(direction: str, weekly: dict | None,
             reasons.append(f"weekly RSI {rsi_w:.0f} unfavorable")
 
     if available <= 0:
-        return {"mtf_score": None, "mtf_aligned": None,
-                "mtf_reasons": ["no weekly components computable"]}
+        return {
+            "mtf_score": None,
+            "mtf_aligned": None,
+            "mtf_reasons": ["no weekly components computable"],
+        }
 
     score = round(earned / available * 100)
     return {
@@ -181,8 +187,7 @@ def mtf_alignment(direction: str, weekly: dict | None,
     }
 
 
-def analyze_mtf(df: pd.DataFrame, direction: str,
-                config: dict | None = None) -> dict:
+def analyze_mtf(df: pd.DataFrame, direction: str, config: dict | None = None) -> dict:
     """Convenience wrapper: daily OHLCV in, alignment dict out."""
     weekly = weekly_state(resample_weekly(df))
     return mtf_alignment(direction, weekly, config)

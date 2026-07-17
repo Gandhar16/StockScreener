@@ -33,18 +33,30 @@ if hasattr(sys.stdout, "reconfigure"):
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
+
 def _hdr(title: str):
     pass
 
-def _ok(msg: str):  pass
-def _err(msg: str): pass
-def _info(msg: str):pass
+
+def _ok(msg: str):
+    pass
+
+
+def _err(msg: str):
+    pass
+
+
+def _info(msg: str):
+    pass
+
 
 def _elapsed(t0: float) -> str:
     s = time.time() - t0
     return f"{s:.1f}s" if s < 60 else f"{s/60:.1f}min"
 
+
 # ── stage runners ──────────────────────────────────────────────────────────────
+
 
 def stage_equity_calls(args) -> bool:
     """Stage 1-3: fundamentals + equity calls + optional charts (one pass)."""
@@ -56,9 +68,12 @@ def stage_equity_calls(args) -> bool:
     t0 = time.time()
     try:
         from generate_calls import DEFAULT_INDIA, DEFAULT_US, generate_calls, print_calls
+
         tickers = DEFAULT_US + DEFAULT_INDIA
-        _info(f"{len(tickers)} tickers  |  charts={'yes' if save_charts else 'no'}  |  "
-              f"force_refresh={args.force_refresh}")
+        _info(
+            f"{len(tickers)} tickers  |  charts={'yes' if save_charts else 'no'}  |  "
+            f"force_refresh={args.force_refresh}"
+        )
 
         calls = generate_calls(
             tickers,
@@ -77,10 +92,12 @@ def stage_equity_calls(args) -> bool:
         with open("dashboard/equity_calls.json", "w", encoding="utf-8") as f:
             f.write(payload)
 
-        lt  = len(calls.get("long_term_calls", []))
-        sw  = len(calls.get("swing_calls", []))
-        sl  = len(calls.get("sell_calls", []))
-        _ok(f"Equity calls → dashboard/equity_calls.json  [{lt} LT | {sw} swing | {sl} sell]  ({_elapsed(t0)})")
+        lt = len(calls.get("long_term_calls", []))
+        sw = len(calls.get("swing_calls", []))
+        sl = len(calls.get("sell_calls", []))
+        _ok(
+            f"Equity calls → dashboard/equity_calls.json  [{lt} LT | {sw} swing | {sl} sell]  ({_elapsed(t0)})"
+        )
         return True
     except Exception:
         _err(f"Equity calls stage failed  ({_elapsed(t0)})")
@@ -89,7 +106,7 @@ def stage_equity_calls(args) -> bool:
 
 
 def stage_charts(args) -> bool:
-    return True   # merged into stage_equity_calls
+    return True  # merged into stage_equity_calls
 
 
 def stage_backtest(args) -> bool:
@@ -105,7 +122,7 @@ def stage_backtest(args) -> bool:
         # 4a — swing strategy backtest
         _info("Running swing strategy backtest ...")
         sw_result = rp.run()
-        fc  = sw_result.get("final_capital", 0)
+        fc = sw_result.get("final_capital", 0)
         _ok(f"Swing backtest → ${fc:,.0f}  ({_elapsed(t0)})")
 
         # 4b — long-term no-SL backtest
@@ -128,11 +145,14 @@ def stage_lt_portfolio(args) -> bool:
     t0 = time.time()
     try:
         from long_term_portfolio import auto_manage
+
         result = auto_manage(force_refresh=args.force_refresh)
-        added  = result.get("added", [])
+        added = result.get("added", [])
         exited = result.get("exited", [])
-        cands  = result.get("candidates", 0)
-        _ok(f"LT portfolio → {cands} candidates | +{len(added)} added | -{len(exited)} exited  ({_elapsed(t0)})")
+        cands = result.get("candidates", 0)
+        _ok(
+            f"LT portfolio → {cands} candidates | +{len(added)} added | -{len(exited)} exited  ({_elapsed(t0)})"
+        )
         return True
     except Exception:
         _err(f"LT portfolio stage failed  ({_elapsed(t0)})")
@@ -141,6 +161,7 @@ def stage_lt_portfolio(args) -> bool:
 
 
 # ── dashboard launcher ─────────────────────────────────────────────────────────
+
 
 def _port_open(port: int) -> bool:
     with socket.socket() as s:
@@ -158,7 +179,7 @@ def launch_dashboard():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        time.sleep(1.5)   # give server a moment to bind
+        time.sleep(1.5)  # give server a moment to bind
     else:
         _info("Dashboard server already running on port 8000")
     webbrowser.open("http://localhost:8000")
@@ -167,37 +188,36 @@ def launch_dashboard():
 
 # ── summary ────────────────────────────────────────────────────────────────────
 
+
 def print_summary(results: dict, t_total: float):
     labels = {
-        "calls":    "Equity calls + charts → reports/equity_calls.json + reports/*.png",
+        "calls": "Equity calls + charts → reports/equity_calls.json + reports/*.png",
         "backtest": "Backtest              → dashboard/data.json",
-        "lt":       "LT portfolio          → reports/lt_portfolio.json",
+        "lt": "LT portfolio          → reports/lt_portfolio.json",
     }
     for key, _label in labels.items():
         "✓" if results.get(key) else "✗" if results.get(key) is False else "—"
 
 
-
 # ── CLI ────────────────────────────────────────────────────────────────────────
+
 
 def parse_args():
     p = argparse.ArgumentParser(
         description="StockCalls master pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--fast",           action="store_true",
-                   help="Skip backtest and charts — fastest dashboard refresh")
-    p.add_argument("--skip-backtest",  action="store_true",
-                   help="Skip Stage 4 backtest simulation")
-    p.add_argument("--skip-charts",    action="store_true",
-                   help="Skip Stage 3 chart PNG generation")
-    p.add_argument("--force-refresh",  action="store_true",
-                   help="Bypass 24h fundamental data cache")
+    p.add_argument(
+        "--fast", action="store_true", help="Skip backtest and charts — fastest dashboard refresh"
+    )
+    p.add_argument("--skip-backtest", action="store_true", help="Skip Stage 4 backtest simulation")
+    p.add_argument("--skip-charts", action="store_true", help="Skip Stage 3 chart PNG generation")
+    p.add_argument("--force-refresh", action="store_true", help="Bypass 24h fundamental data cache")
     return p.parse_args()
 
 
 def main():
-    args    = parse_args()
+    args = parse_args()
     t_total = time.time()
     datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -205,9 +225,9 @@ def main():
         pass
 
     results = {}
-    results["calls"]    = stage_equity_calls(args)
+    results["calls"] = stage_equity_calls(args)
     results["backtest"] = stage_backtest(args)
-    results["lt"]       = stage_lt_portfolio(args)
+    results["lt"] = stage_lt_portfolio(args)
 
     print_summary(results, t_total)
     launch_dashboard()

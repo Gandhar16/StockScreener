@@ -20,11 +20,7 @@ from stock_scanner.config import ScannerConfig, load_config_from_file
 from stock_scanner.engine.backtest import Backtester
 from stock_scanner.scanner import StockScanner
 
-app = FastAPI(
-    title="StockCalls API",
-    description="API for StockCalls dashboard",
-    version="1.0.0"
-)
+app = FastAPI(title="StockCalls API", description="API for StockCalls dashboard", version="1.0.0")
 
 # CORS for dashboard
 app.add_middleware(
@@ -39,16 +35,19 @@ app.add_middleware(
 REPORTS_DIR = Path("reports")
 DASHBOARD_DIR = Path("dashboard/dist")
 
+
 # Models
 class ScanRequest(BaseModel):
     tickers: list[str] | None = None
     mode: str = "market_scan"
+
 
 class BacktestRequest(BaseModel):
     phases: int = 3
     start_year: int = 2021
     tickers_per_phase: int = 20
     rebalance_days: int = 30
+
 
 class SettingsRequest(BaseModel):
     telegram_bot_token: str | None = None
@@ -61,14 +60,17 @@ class SettingsRequest(BaseModel):
     data_cache_ttl: int = 24
     log_level: str = "INFO"
 
+
 class TelegramTestRequest(BaseModel):
     bot_token: str
     chat_id: str
+
 
 # Health check
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
 
 # Equity Calls
 @app.get("/api/equity_calls")
@@ -92,6 +94,7 @@ async def get_equity_calls():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/equity_calls/{ticker}")
 async def get_equity_call(ticker: str):
     """Get detailed equity call for a specific ticker."""
@@ -100,6 +103,7 @@ async def get_equity_call(ticker: str):
         if call.get("ticker", "").upper() == ticker.upper():
             return call
     raise HTTPException(status_code=404, detail=f"Call for {ticker} not found")
+
 
 # Dashboard Data
 @app.get("/api/dashboard")
@@ -117,8 +121,9 @@ async def get_dashboard_data():
             "last_updated": datetime.now().isoformat(),
             "universe_size": len(calls),
             "scan_duration_seconds": 0,
-        }
+        },
     }
+
 
 # Stock Detail
 @app.get("/api/stock/{ticker}")
@@ -131,6 +136,7 @@ async def get_stock_detail(ticker: str):
         if call.get("ticker", "").upper() == ticker.upper():
             return call
     raise HTTPException(status_code=404, detail=f"Data for {ticker} not found")
+
 
 # Scanner
 @app.post("/api/scan")
@@ -159,6 +165,7 @@ async def run_scan(request: ScanRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Pipeline
 @app.post("/api/pipeline")
 async def run_pipeline(background_tasks: BackgroundTasks):
@@ -166,11 +173,13 @@ async def run_pipeline(background_tasks: BackgroundTasks):
     try:
         # Import pipeline module
         import pipeline
+
         # Run in background
         background_tasks.add_task(pipeline.main)
         return {"status": "started", "message": "Pipeline started in background"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Backtest
 @app.post("/api/backtest")
@@ -187,6 +196,7 @@ async def run_backtest(request: BacktestRequest):
         return {"results": results, "count": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Settings
 @app.get("/api/settings")
@@ -208,6 +218,7 @@ async def get_settings():
         "log_level": "INFO",
     }
 
+
 @app.post("/api/settings")
 async def save_settings(settings: SettingsRequest):
     """Save settings."""
@@ -216,6 +227,7 @@ async def save_settings(settings: SettingsRequest):
     with open(settings_file, "w") as f:
         json.dump(settings.dict(), f, indent=2)
     return {"status": "saved"}
+
 
 @app.post("/api/test/telegram")
 async def test_telegram(request: TelegramTestRequest):
@@ -226,7 +238,7 @@ async def test_telegram(request: TelegramTestRequest):
     payload = {
         "chat_id": request.chat_id,
         "text": "🧪 StockCalls test message - configuration successful!",
-        "parse_mode": "HTML"
+        "parse_mode": "HTML",
     }
 
     try:
@@ -238,20 +250,24 @@ async def test_telegram(request: TelegramTestRequest):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 # Generate Calls
 @app.post("/api/generate_calls")
 async def generate_calls(background_tasks: BackgroundTasks):
     """Generate equity calls."""
     try:
         import generate_calls
+
         background_tasks.add_task(generate_calls.main)
         return {"status": "started", "message": "Call generation started"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Serve dashboard static files
 if DASHBOARD_DIR.exists():
     app.mount("/assets", StaticFiles(directory=DASHBOARD_DIR / "assets"), name="assets")
+
 
 @app.get("/{full_path:path}")
 async def serve_dashboard(full_path: str):
@@ -260,6 +276,7 @@ async def serve_dashboard(full_path: str):
     if index_file.exists():
         return FileResponse(index_file)
     return {"message": "Dashboard not built. Run 'npm run build' in dashboard directory."}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

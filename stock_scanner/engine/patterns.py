@@ -40,6 +40,7 @@ import pandas as pd
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
+
 def _acr(df: pd.DataFrame, idx_a: int, idx_b: int) -> float:
     """
     Average Candle Range between two bar indices (inclusive).
@@ -52,15 +53,14 @@ def _acr(df: pd.DataFrame, idx_a: int, idx_b: int) -> float:
     return float(ranges.mean()) if len(ranges) > 0 else 0.0
 
 
-def _no_close_breach(df: pd.DataFrame, after_bar: int,
-                     level: float, direction: str) -> bool:
+def _no_close_breach(df: pd.DataFrame, after_bar: int, level: float, direction: str) -> bool:
     """
     Breach check (rule-book confirmation rule):
     Returns True if no Close after after_bar has crossed 'level'.
     direction='above' → breach = Close > level
     direction='below' → breach = Close < level
     """
-    closes = df["Close"].iloc[after_bar + 1:].values
+    closes = df["Close"].iloc[after_bar + 1 :].values
     if len(closes) == 0:
         return True
     if direction == "above":
@@ -70,21 +70,25 @@ def _no_close_breach(df: pd.DataFrame, after_bar: int,
 
 # ── main class ─────────────────────────────────────────────────────────────────
 
+
 class PatternFinder:
-    def __init__(self,
-                 price_tolerance: float = 0.03,   # fallback % (rarely used now)
-                 min_pullback: float = 0.03,
-                 recent_candle_bars: int = 15,
-                 recent_chart_bars: int = 30):
-        self.tol          = price_tolerance
-        self.pull         = min_pullback
-        self.recent       = recent_candle_bars
+    def __init__(
+        self,
+        price_tolerance: float = 0.03,  # fallback % (rarely used now)
+        min_pullback: float = 0.03,
+        recent_candle_bars: int = 15,
+        recent_chart_bars: int = 30,
+    ):
+        self.tol = price_tolerance
+        self.pull = min_pullback
+        self.recent = recent_candle_bars
         self.recent_chart = recent_chart_bars
 
     # ── public entry points ───────────────────────────────────────────────────
 
-    def find_all(self, df: pd.DataFrame,
-                 p_highs: list[dict], p_lows: list[dict]) -> list[dict[str, Any]]:
+    def find_all(
+        self, df: pd.DataFrame, p_highs: list[dict], p_lows: list[dict]
+    ) -> list[dict[str, Any]]:
         """Return recently completed + confirmed patterns."""
         n = len(df)
         cutoff = n - self.recent_chart
@@ -116,8 +120,9 @@ class PatternFinder:
         patterns.sort(key=lambda p: p["completed_bar"])
         return patterns
 
-    def find_forming(self, df: pd.DataFrame,
-                     p_highs: list[dict], p_lows: list[dict]) -> list[dict[str, Any]]:
+    def find_forming(
+        self, df: pd.DataFrame, p_highs: list[dict], p_lows: list[dict]
+    ) -> list[dict[str, Any]]:
         """
         CMP-centric forming patterns.
         Every signal requires:
@@ -131,8 +136,10 @@ class PatternFinder:
 
         current = float(df["Close"].iloc[-1])
         look = min(5, n - 1)
-        pct  = (current - float(df["Close"].iloc[-(look + 1)])) / float(df["Close"].iloc[-(look + 1)])
-        rising  = pct >  0.005
+        pct = (current - float(df["Close"].iloc[-(look + 1)])) / float(
+            df["Close"].iloc[-(look + 1)]
+        )
+        rising = pct > 0.005
         falling = pct < -0.005
         lookback = min(n, 80)
 
@@ -179,22 +186,24 @@ class PatternFinder:
                     continue
             # neckline break confirmation
             nk_break = next(
-                (bi for bi in range(c["index"] + 1, n)
-                 if float(df["Close"].iloc[bi]) < b["price"]),
-                None)
+                (bi for bi in range(c["index"] + 1, n) if float(df["Close"].iloc[bi]) < b["price"]),
+                None,
+            )
             if nk_break is None:
                 continue
-            results.append({
-                "name": "Double Top",
-                "short": "M-Top",
-                "type": "bearish",
-                "bar_indices": [a["index"], b["index"], c["index"]],
-                "key_prices": {"A": a["price"], "B": b["price"], "C": c["price"]},
-                "completed_bar": nk_break,
-                "label_bar": c["index"],
-                "label_price": c["price"],
-                "label_above": True,
-            })
+            results.append(
+                {
+                    "name": "Double Top",
+                    "short": "M-Top",
+                    "type": "bearish",
+                    "bar_indices": [a["index"], b["index"], c["index"]],
+                    "key_prices": {"A": a["price"], "B": b["price"], "C": c["price"]},
+                    "completed_bar": nk_break,
+                    "label_bar": c["index"],
+                    "label_price": c["price"],
+                    "label_above": True,
+                }
+            )
         return results
 
     def _double_bottom(self, df, p_highs, p_lows):
@@ -225,22 +234,24 @@ class PatternFinder:
                 if c["volume"] >= a["volume"]:
                     continue
             nk_break = next(
-                (bi for bi in range(c["index"] + 1, n)
-                 if float(df["Close"].iloc[bi]) > b["price"]),
-                None)
+                (bi for bi in range(c["index"] + 1, n) if float(df["Close"].iloc[bi]) > b["price"]),
+                None,
+            )
             if nk_break is None:
                 continue
-            results.append({
-                "name": "Double Bottom",
-                "short": "W-Bot",
-                "type": "bullish",
-                "bar_indices": [a["index"], b["index"], c["index"]],
-                "key_prices": {"A": a["price"], "B": b["price"], "C": c["price"]},
-                "completed_bar": nk_break,
-                "label_bar": c["index"],
-                "label_price": c["price"],
-                "label_above": False,
-            })
+            results.append(
+                {
+                    "name": "Double Bottom",
+                    "short": "W-Bot",
+                    "type": "bullish",
+                    "bar_indices": [a["index"], b["index"], c["index"]],
+                    "key_prices": {"A": a["price"], "B": b["price"], "C": c["price"]},
+                    "completed_bar": nk_break,
+                    "label_bar": c["index"],
+                    "label_price": c["price"],
+                    "label_above": False,
+                }
+            )
         return results
 
     def _head_and_shoulders(self, df, p_highs, p_lows):
@@ -270,20 +281,24 @@ class PatternFinder:
             # breach check: no close above e after e formed
             if not _no_close_breach(df, e["index"], e["price"], "above"):
                 continue
-            results.append({
-                "name": "Head & Shoulders",
-                "short": "H&S",
-                "type": "bearish",
-                "bar_indices": [a["index"], b["index"], c["index"],
-                                d["index"], e["index"]],
-                "key_prices": {"LS": a["price"], "Head": c["price"],
-                               "RS": e["price"],
-                               "neck": (b["price"] + d["price"]) / 2},
-                "completed_bar": e["index"],
-                "label_bar": c["index"],
-                "label_price": c["price"],
-                "label_above": True,
-            })
+            results.append(
+                {
+                    "name": "Head & Shoulders",
+                    "short": "H&S",
+                    "type": "bearish",
+                    "bar_indices": [a["index"], b["index"], c["index"], d["index"], e["index"]],
+                    "key_prices": {
+                        "LS": a["price"],
+                        "Head": c["price"],
+                        "RS": e["price"],
+                        "neck": (b["price"] + d["price"]) / 2,
+                    },
+                    "completed_bar": e["index"],
+                    "label_bar": c["index"],
+                    "label_price": c["price"],
+                    "label_above": True,
+                }
+            )
         return results
 
     def _inv_head_and_shoulders(self, df, p_highs, p_lows):
@@ -312,20 +327,24 @@ class PatternFinder:
                 continue
             if not _no_close_breach(df, e["index"], e["price"], "below"):
                 continue
-            results.append({
-                "name": "Inv Head & Shoulders",
-                "short": "IH&S",
-                "type": "bullish",
-                "bar_indices": [a["index"], b["index"], c["index"],
-                                d["index"], e["index"]],
-                "key_prices": {"LS": a["price"], "Head": c["price"],
-                               "RS": e["price"],
-                               "neck": (b["price"] + d["price"]) / 2},
-                "completed_bar": e["index"],
-                "label_bar": c["index"],
-                "label_price": c["price"],
-                "label_above": False,
-            })
+            results.append(
+                {
+                    "name": "Inv Head & Shoulders",
+                    "short": "IH&S",
+                    "type": "bullish",
+                    "bar_indices": [a["index"], b["index"], c["index"], d["index"], e["index"]],
+                    "key_prices": {
+                        "LS": a["price"],
+                        "Head": c["price"],
+                        "RS": e["price"],
+                        "neck": (b["price"] + d["price"]) / 2,
+                    },
+                    "completed_bar": e["index"],
+                    "label_bar": c["index"],
+                    "label_price": c["price"],
+                    "label_above": False,
+                }
+            )
         return results
 
     # ── forming / CMP-context chart patterns ──────────────────────────────────
@@ -346,18 +365,20 @@ class PatternFinder:
                 continue
             gap = (a["price"] - current) / a["price"]
             if 0 < gap <= self.tol * 2.0 and current > b["price"]:
-                results.append({
-                    "name": "Forming Double Top",
-                    "short": "M-Top?",
-                    "type": "bearish",
-                    "forming": True,
-                    "bar_indices": [a["index"], b["index"], n - 1],
-                    "key_prices": {"resistance": a["price"], "neckline": b["price"]},
-                    "completed_bar": n - 1,
-                    "label_bar": n - 1,
-                    "label_price": a["price"],
-                    "label_above": True,
-                })
+                results.append(
+                    {
+                        "name": "Forming Double Top",
+                        "short": "M-Top?",
+                        "type": "bearish",
+                        "forming": True,
+                        "bar_indices": [a["index"], b["index"], n - 1],
+                        "key_prices": {"resistance": a["price"], "neckline": b["price"]},
+                        "completed_bar": n - 1,
+                        "label_bar": n - 1,
+                        "label_price": a["price"],
+                        "label_above": True,
+                    }
+                )
                 break
         return results
 
@@ -377,18 +398,20 @@ class PatternFinder:
                 continue
             gap = (current - a["price"]) / a["price"]
             if 0 < gap <= self.tol * 2.0 and current < b["price"]:
-                results.append({
-                    "name": "Forming Double Bottom",
-                    "short": "W-Bot?",
-                    "type": "bullish",
-                    "forming": True,
-                    "bar_indices": [a["index"], b["index"], n - 1],
-                    "key_prices": {"support": a["price"], "neckline": b["price"]},
-                    "completed_bar": n - 1,
-                    "label_bar": n - 1,
-                    "label_price": a["price"],
-                    "label_above": False,
-                })
+                results.append(
+                    {
+                        "name": "Forming Double Bottom",
+                        "short": "W-Bot?",
+                        "type": "bullish",
+                        "forming": True,
+                        "bar_indices": [a["index"], b["index"], n - 1],
+                        "key_prices": {"support": a["price"], "neckline": b["price"]},
+                        "completed_bar": n - 1,
+                        "label_bar": n - 1,
+                        "label_price": a["price"],
+                        "label_above": False,
+                    }
+                )
                 break
         return results
 
@@ -409,19 +432,24 @@ class PatternFinder:
             if current <= d["price"]:
                 continue
             if abs(current - a["price"]) / a["price"] <= self.tol * 2.0 and current < c["price"]:
-                results.append({
-                    "name": "Forming H&S",
-                    "short": "H&S?",
-                    "type": "bearish",
-                    "forming": True,
-                    "bar_indices": [a["index"], c["index"], d["index"], n - 1],
-                    "key_prices": {"head": c["price"], "neckline": d["price"],
-                                   "RS_level": a["price"]},
-                    "completed_bar": n - 1,
-                    "label_bar": c["index"],
-                    "label_price": c["price"],
-                    "label_above": True,
-                })
+                results.append(
+                    {
+                        "name": "Forming H&S",
+                        "short": "H&S?",
+                        "type": "bearish",
+                        "forming": True,
+                        "bar_indices": [a["index"], c["index"], d["index"], n - 1],
+                        "key_prices": {
+                            "head": c["price"],
+                            "neckline": d["price"],
+                            "RS_level": a["price"],
+                        },
+                        "completed_bar": n - 1,
+                        "label_bar": c["index"],
+                        "label_price": c["price"],
+                        "label_above": True,
+                    }
+                )
         return results
 
     def _forming_ihs(self, df, p_highs, p_lows, current, lookback, falling):
@@ -441,19 +469,24 @@ class PatternFinder:
             if current >= d["price"]:
                 continue
             if abs(current - a["price"]) / a["price"] <= self.tol * 2.0 and current > c["price"]:
-                results.append({
-                    "name": "Forming IH&S",
-                    "short": "IH&S?",
-                    "type": "bullish",
-                    "forming": True,
-                    "bar_indices": [a["index"], c["index"], d["index"], n - 1],
-                    "key_prices": {"head": c["price"], "neckline": d["price"],
-                                   "RS_level": a["price"]},
-                    "completed_bar": n - 1,
-                    "label_bar": c["index"],
-                    "label_price": c["price"],
-                    "label_above": False,
-                })
+                results.append(
+                    {
+                        "name": "Forming IH&S",
+                        "short": "IH&S?",
+                        "type": "bullish",
+                        "forming": True,
+                        "bar_indices": [a["index"], c["index"], d["index"], n - 1],
+                        "key_prices": {
+                            "head": c["price"],
+                            "neckline": d["price"],
+                            "RS_level": a["price"],
+                        },
+                        "completed_bar": n - 1,
+                        "label_bar": c["index"],
+                        "label_price": c["price"],
+                        "label_above": False,
+                    }
+                )
         return results
 
     def _triangles_wedges(self, df, p_highs, p_lows, current, lookback):
@@ -478,17 +511,16 @@ class PatternFinder:
 
         # Use last 3 highs and last 2 lows for classification
         a_h, c_h, e_h = rph[-3], rph[-2], rph[-1]  # A, C, E highs
-        b_l, d_l      = rpl[-2], rpl[-1]              # B, D lows
+        b_l, d_l = rpl[-2], rpl[-1]  # B, D lows
 
         # Pivots must be interleaved chronologically
-        all_idx = sorted([a_h["index"], c_h["index"], e_h["index"],
-                          b_l["index"], d_l["index"]])
+        all_idx = sorted([a_h["index"], c_h["index"], e_h["index"], b_l["index"], d_l["index"]])
         if all_idx[-1] < n - 20:
             return results  # too old
 
         cur_idx = n - 1
         acr_highs = _acr(df, a_h["index"], e_h["index"])
-        acr_lows  = _acr(df, b_l["index"], d_l["index"])
+        acr_lows = _acr(df, b_l["index"], d_l["index"])
 
         # Current trendline values (fit line through 3 highs and 2 lows)
         hx = np.array([a_h["index"], c_h["index"], e_h["index"]], dtype=float)
@@ -518,29 +550,40 @@ class PatternFinder:
         ext = min(cur_idx + bars_to_apex + 5, cur_idx + 30)
 
         segs = [
-            {"x": [int(hx.min()), ext],
-             "y": [h_slope * hx.min() + h_inter, h_slope * ext + h_inter]},
-            {"x": [int(lx.min()), ext],
-             "y": [l_slope * lx.min() + l_inter, l_slope * ext + l_inter]},
+            {
+                "x": [int(hx.min()), ext],
+                "y": [h_slope * hx.min() + h_inter, h_slope * ext + h_inter],
+            },
+            {
+                "x": [int(lx.min()), ext],
+                "y": [l_slope * lx.min() + l_inter, l_slope * ext + l_inter],
+            },
         ]
         all_idxs = sorted({int(x) for x in hx.tolist() + lx.tolist()})
 
         def pat(name, short, ptype):
             lp = cur_h_val if ptype in ("bearish", "neutral") else cur_l_val
             la = ptype in ("bearish", "neutral")
-            return {"name": name, "short": short, "type": ptype,
-                    "forming": True, "bar_indices": all_idxs, "segments": segs,
-                    "key_prices": {"resistance": round(cur_h_val, 4),
-                                   "support": round(cur_l_val, 4)},
-                    "completed_bar": cur_idx, "label_bar": cur_idx,
-                    "label_price": lp, "label_above": la,
-                    "bars_to_apex": bars_to_apex}
+            return {
+                "name": name,
+                "short": short,
+                "type": ptype,
+                "forming": True,
+                "bar_indices": all_idxs,
+                "segments": segs,
+                "key_prices": {"resistance": round(cur_h_val, 4), "support": round(cur_l_val, 4)},
+                "completed_bar": cur_idx,
+                "label_bar": cur_idx,
+                "label_price": lp,
+                "label_above": la,
+                "bars_to_apex": bars_to_apex,
+            }
 
         flat_top_AC = abs(a_h["price"] - c_h["price"]) <= acr_highs
         flat_top_CE = abs(c_h["price"] - e_h["price"]) <= acr_highs
-        flat_bot    = abs(b_l["price"] - d_l["price"]) <= acr_lows
-        fall_highs  = a_h["price"] > c_h["price"] > e_h["price"]
-        rise_lows   = b_l["price"] < d_l["price"]
+        flat_bot = abs(b_l["price"] - d_l["price"]) <= acr_lows
+        fall_highs = a_h["price"] > c_h["price"] > e_h["price"]
+        rise_lows = b_l["price"] < d_l["price"]
 
         if flat_top_AC and flat_top_CE and rise_lows:
             results.append(pat("Ascending Triangle", "Asc-Tri", "bullish"))
@@ -570,7 +613,7 @@ class PatternFinder:
         n = len(df)
         results = []
         rph = [h for h in p_highs if h["index"] >= n - lookback]
-        rpl = [l for l in p_lows  if l["index"] >= n - lookback]
+        rpl = [l for l in p_lows if l["index"] >= n - lookback]
         if len(rph) < 2 or len(rpl) < 2:
             return results
 
@@ -594,27 +637,29 @@ class PatternFinder:
             b, d = d, b
 
         # VCP rules
-        if not (b["price"] < d["price"]):          # B is lower than D
+        if not (b["price"] < d["price"]):  # B is lower than D
             return results
         if not (d["price"] < min(a["price"], c["price"])):
             return results
-        if not (current < c["price"]):              # E < C (not broken top)
+        if not (current < c["price"]):  # E < C (not broken top)
             return results
-        if not (current > d["price"]):              # E above D (narrowing)
+        if not (current > d["price"]):  # E above D (narrowing)
             return results
 
-        results.append({
-            "name": "VCP",
-            "short": "VCP",
-            "type": "bullish",
-            "forming": True,
-            "bar_indices": [a["index"], b["index"], c["index"], d["index"], n - 1],
-            "key_prices": {"resistance": c["price"], "support": d["price"]},
-            "completed_bar": n - 1,
-            "label_bar": n - 1,
-            "label_price": current,
-            "label_above": False,
-        })
+        results.append(
+            {
+                "name": "VCP",
+                "short": "VCP",
+                "type": "bullish",
+                "forming": True,
+                "bar_indices": [a["index"], b["index"], c["index"], d["index"], n - 1],
+                "key_prices": {"resistance": c["price"], "support": d["price"]},
+                "completed_bar": n - 1,
+                "label_bar": n - 1,
+                "label_price": current,
+                "label_above": False,
+            }
+        )
         return results
 
     def _flags(self, df, p_highs, p_lows, current):
@@ -629,7 +674,7 @@ class PatternFinder:
         results = []
 
         # Bull Flag
-        recent_pl = [l for l in p_lows  if l["index"] >= n - 30 and l["index"] <= n - 5]
+        recent_pl = [l for l in p_lows if l["index"] >= n - 30 and l["index"] <= n - 5]
         recent_ph = [h for h in p_highs if h["index"] >= n - 30 and h["index"] <= n - 3]
         for pole_base in recent_pl:
             tops = [h for h in recent_ph if h["index"] > pole_base["index"]]
@@ -639,7 +684,7 @@ class PatternFinder:
             pole_pct = (pole_top["price"] - pole_base["price"]) / pole_base["price"]
             if pole_pct < 0.05:
                 continue
-            flag = df.iloc[pole_top["index"]:]
+            flag = df.iloc[pole_top["index"] :]
             if len(flag) < 3:
                 continue
             fh = float(flag["High"].max())
@@ -650,24 +695,25 @@ class PatternFinder:
                 continue
             if current < pole_top["price"] * (1 - pole_pct * 0.5):
                 continue  # retracement > 50% of pole
-            results.append({
-                "name": "Bull Flag",
-                "short": "BullFlag",
-                "type": "bullish",
-                "forming": True,
-                "bar_indices": [pole_base["index"], pole_top["index"], n - 1],
-                "key_prices": {"flag_high": fh, "flag_low": fl,
-                                "pole_top": pole_top["price"]},
-                "completed_bar": n - 1,
-                "label_bar": n - 1,
-                "label_price": fl,
-                "label_above": False,
-            })
+            results.append(
+                {
+                    "name": "Bull Flag",
+                    "short": "BullFlag",
+                    "type": "bullish",
+                    "forming": True,
+                    "bar_indices": [pole_base["index"], pole_top["index"], n - 1],
+                    "key_prices": {"flag_high": fh, "flag_low": fl, "pole_top": pole_top["price"]},
+                    "completed_bar": n - 1,
+                    "label_bar": n - 1,
+                    "label_price": fl,
+                    "label_above": False,
+                }
+            )
             break
 
         # Bear Flag
         recent_ph2 = [h for h in p_highs if h["index"] >= n - 30 and h["index"] <= n - 5]
-        recent_pl2 = [l for l in p_lows  if l["index"] >= n - 30 and l["index"] <= n - 3]
+        recent_pl2 = [l for l in p_lows if l["index"] >= n - 30 and l["index"] <= n - 3]
         for pole_top in recent_ph2:
             bottoms = [l for l in recent_pl2 if l["index"] > pole_top["index"]]
             if not bottoms:
@@ -676,7 +722,7 @@ class PatternFinder:
             pole_pct = (pole_top["price"] - pole_base["price"]) / pole_top["price"]
             if pole_pct < 0.05:
                 continue
-            flag = df.iloc[pole_base["index"]:]
+            flag = df.iloc[pole_base["index"] :]
             if len(flag) < 3:
                 continue
             fh = float(flag["High"].max())
@@ -687,19 +733,24 @@ class PatternFinder:
                 continue
             if current > pole_base["price"] * (1 + pole_pct * 0.5):
                 continue
-            results.append({
-                "name": "Bear Flag",
-                "short": "BearFlag",
-                "type": "bearish",
-                "forming": True,
-                "bar_indices": [pole_top["index"], pole_base["index"], n - 1],
-                "key_prices": {"flag_high": fh, "flag_low": fl,
-                                "pole_bottom": pole_base["price"]},
-                "completed_bar": n - 1,
-                "label_bar": n - 1,
-                "label_price": fh,
-                "label_above": True,
-            })
+            results.append(
+                {
+                    "name": "Bear Flag",
+                    "short": "BearFlag",
+                    "type": "bearish",
+                    "forming": True,
+                    "bar_indices": [pole_top["index"], pole_base["index"], n - 1],
+                    "key_prices": {
+                        "flag_high": fh,
+                        "flag_low": fl,
+                        "pole_bottom": pole_base["price"],
+                    },
+                    "completed_bar": n - 1,
+                    "label_bar": n - 1,
+                    "label_price": fh,
+                    "label_above": True,
+                }
+            )
             break
 
         return results
@@ -716,116 +767,191 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 2, n):
-            o1,c1 = float(df["Open"].iloc[i-2]), float(df["Close"].iloc[i-2])
-            o2,c2 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o3,c3 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
-            b1,b2,b3 = abs(c1-o1), abs(c2-o2), abs(c3-o3)
-            avg = (b1+b3)/2
-            if avg == 0 or c1>=o1 or b2>avg*0.35 or c3<=o3 or c3<(o1+c1)/2:
+            o1, c1 = float(df["Open"].iloc[i - 2]), float(df["Close"].iloc[i - 2])
+            o2, c2 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o3, c3 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            b1, b2, b3 = abs(c1 - o1), abs(c2 - o2), abs(c3 - o3)
+            avg = (b1 + b3) / 2
+            if avg == 0 or c1 >= o1 or b2 > avg * 0.35 or c3 <= o3 or c3 < (o1 + c1) / 2:
                 continue
-            results.append({"name":"Morning Star","short":"MornStar","type":"bullish",
-                "bar_indices":[i-2,i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["Low"].iloc[i-2:i+1].min()),"label_above":False})
+            results.append(
+                {
+                    "name": "Morning Star",
+                    "short": "MornStar",
+                    "type": "bullish",
+                    "bar_indices": [i - 2, i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["Low"].iloc[i - 2 : i + 1].min()),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _evening_star(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 2, n):
-            o1,c1 = float(df["Open"].iloc[i-2]), float(df["Close"].iloc[i-2])
-            o2,c2 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o3,c3 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
-            b1,b2,b3 = abs(c1-o1), abs(c2-o2), abs(c3-o3)
-            avg = (b1+b3)/2
-            if avg == 0 or c1<=o1 or b2>avg*0.35 or c3>=o3 or c3>(o1+c1)/2:
+            o1, c1 = float(df["Open"].iloc[i - 2]), float(df["Close"].iloc[i - 2])
+            o2, c2 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o3, c3 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            b1, b2, b3 = abs(c1 - o1), abs(c2 - o2), abs(c3 - o3)
+            avg = (b1 + b3) / 2
+            if avg == 0 or c1 <= o1 or b2 > avg * 0.35 or c3 >= o3 or c3 > (o1 + c1) / 2:
                 continue
-            results.append({"name":"Evening Star","short":"EveStar","type":"bearish",
-                "bar_indices":[i-2,i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["High"].iloc[i-2:i+1].max()),"label_above":True})
+            results.append(
+                {
+                    "name": "Evening Star",
+                    "short": "EveStar",
+                    "type": "bearish",
+                    "bar_indices": [i - 2, i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["High"].iloc[i - 2 : i + 1].max()),
+                    "label_above": True,
+                }
+            )
         return results
 
     def _bullish_engulfing(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,c2 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
-            if c1>=o1 or c2<=o2 or o2>c1 or c2<o1:
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            if c1 >= o1 or c2 <= o2 or o2 > c1 or c2 < o1:
                 continue
-            results.append({"name":"Bullish Engulfing","short":"BullEng","type":"bullish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["Low"].iloc[i]),"label_above":False})
+            results.append(
+                {
+                    "name": "Bullish Engulfing",
+                    "short": "BullEng",
+                    "type": "bullish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["Low"].iloc[i]),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _bearish_engulfing(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,c2 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
-            if c1<=o1 or c2>=o2 or o2<c1 or c2>o1:
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            if c1 <= o1 or c2 >= o2 or o2 < c1 or c2 > o1:
                 continue
-            results.append({"name":"Bearish Engulfing","short":"BearEng","type":"bearish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["High"].iloc[i]),"label_above":True})
+            results.append(
+                {
+                    "name": "Bearish Engulfing",
+                    "short": "BearEng",
+                    "type": "bearish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["High"].iloc[i]),
+                    "label_above": True,
+                }
+            )
         return results
 
     def _hammer(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start, n):
-            o,h,l,c = (float(df["Open"].iloc[i]), float(df["High"].iloc[i]),
-                       float(df["Low"].iloc[i]),  float(df["Close"].iloc[i]))
+            o, h, l, c = (
+                float(df["Open"].iloc[i]),
+                float(df["High"].iloc[i]),
+                float(df["Low"].iloc[i]),
+                float(df["Close"].iloc[i]),
+            )
             rng = h - l
             if rng == 0:
                 continue
             body = abs(c - o)
             if body == 0:
                 continue
-            lower = min(o,c) - l
-            upper = h - max(o,c)
-            if lower < 2*body or upper > body*0.5:
+            lower = min(o, c) - l
+            upper = h - max(o, c)
+            if lower < 2 * body or upper > body * 0.5:
                 continue
-            results.append({"name":"Hammer","short":"Hammer","type":"bullish",
-                "bar_indices":[i],"completed_bar":i,"label_bar":i,
-                "label_price":l,"label_above":False})
+            results.append(
+                {
+                    "name": "Hammer",
+                    "short": "Hammer",
+                    "type": "bullish",
+                    "bar_indices": [i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": l,
+                    "label_above": False,
+                }
+            )
         return results
 
     def _shooting_star(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start, n):
-            o,h,l,c = (float(df["Open"].iloc[i]), float(df["High"].iloc[i]),
-                       float(df["Low"].iloc[i]),  float(df["Close"].iloc[i]))
+            o, h, l, c = (
+                float(df["Open"].iloc[i]),
+                float(df["High"].iloc[i]),
+                float(df["Low"].iloc[i]),
+                float(df["Close"].iloc[i]),
+            )
             rng = h - l
             if rng == 0:
                 continue
             body = abs(c - o)
             if body == 0:
                 continue
-            upper = h - max(o,c)
-            lower = min(o,c) - l
-            if upper < 2*body or lower > body*0.5:
+            upper = h - max(o, c)
+            lower = min(o, c) - l
+            if upper < 2 * body or lower > body * 0.5:
                 continue
-            results.append({"name":"Shooting Star","short":"ShootStar","type":"bearish",
-                "bar_indices":[i],"completed_bar":i,"label_bar":i,
-                "label_price":h,"label_above":True})
+            results.append(
+                {
+                    "name": "Shooting Star",
+                    "short": "ShootStar",
+                    "type": "bearish",
+                    "bar_indices": [i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": h,
+                    "label_above": True,
+                }
+            )
         return results
 
     def _doji(self, df):
         results = []
         start, n = self._recent_range(df)
         for i in range(start, n):
-            o,h,l,c = (float(df["Open"].iloc[i]), float(df["High"].iloc[i]),
-                       float(df["Low"].iloc[i]),  float(df["Close"].iloc[i]))
+            o, h, l, c = (
+                float(df["Open"].iloc[i]),
+                float(df["High"].iloc[i]),
+                float(df["Low"].iloc[i]),
+                float(df["Close"].iloc[i]),
+            )
             rng = h - l
             if rng == 0:
                 continue
             if abs(c - o) / rng > 0.05:
                 continue
-            results.append({"name":"Doji","short":"Doji","type":"neutral",
-                "bar_indices":[i],"completed_bar":i,"label_bar":i,
-                "label_price":h,"label_above":True})
+            results.append(
+                {
+                    "name": "Doji",
+                    "short": "Doji",
+                    "type": "neutral",
+                    "bar_indices": [i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": h,
+                    "label_above": True,
+                }
+            )
         return results
 
     # ── new candlestick patterns ──────────────────────────────────────────────
@@ -836,22 +962,37 @@ class PatternFinder:
         start, n = self._recent_range(df)
         for i in range(start + 2, n):
             valid = True
-            for j in range(i-2, i+1):
-                o,h,l,c = (float(df["Open"].iloc[j]), float(df["High"].iloc[j]),
-                           float(df["Low"].iloc[j]),  float(df["Close"].iloc[j]))
+            for j in range(i - 2, i + 1):
+                o, h, l, c = (
+                    float(df["Open"].iloc[j]),
+                    float(df["High"].iloc[j]),
+                    float(df["Low"].iloc[j]),
+                    float(df["Close"].iloc[j]),
+                )
                 if c <= o:
-                    valid = False; break
+                    valid = False
+                    break
                 rng = h - l
                 if rng > 0 and (c - o) / rng < 0.4:
-                    valid = False; break
+                    valid = False
+                    break
             if not valid:
                 continue
-            closes = [float(df["Close"].iloc[k]) for k in range(i-2, i+1)]
+            closes = [float(df["Close"].iloc[k]) for k in range(i - 2, i + 1)]
             if not (closes[1] > closes[0] and closes[2] > closes[1]):
                 continue
-            results.append({"name":"Three White Soldiers","short":"3W-Sol","type":"bullish",
-                "bar_indices":[i-2,i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["Low"].iloc[i-2:i+1].min()),"label_above":False})
+            results.append(
+                {
+                    "name": "Three White Soldiers",
+                    "short": "3W-Sol",
+                    "type": "bullish",
+                    "bar_indices": [i - 2, i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["Low"].iloc[i - 2 : i + 1].min()),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _three_black_crows(self, df):
@@ -860,22 +1001,37 @@ class PatternFinder:
         start, n = self._recent_range(df)
         for i in range(start + 2, n):
             valid = True
-            for j in range(i-2, i+1):
-                o,h,l,c = (float(df["Open"].iloc[j]), float(df["High"].iloc[j]),
-                           float(df["Low"].iloc[j]),  float(df["Close"].iloc[j]))
+            for j in range(i - 2, i + 1):
+                o, h, l, c = (
+                    float(df["Open"].iloc[j]),
+                    float(df["High"].iloc[j]),
+                    float(df["Low"].iloc[j]),
+                    float(df["Close"].iloc[j]),
+                )
                 if c >= o:
-                    valid = False; break
+                    valid = False
+                    break
                 rng = h - l
                 if rng > 0 and (o - c) / rng < 0.4:
-                    valid = False; break
+                    valid = False
+                    break
             if not valid:
                 continue
-            closes = [float(df["Close"].iloc[k]) for k in range(i-2, i+1)]
+            closes = [float(df["Close"].iloc[k]) for k in range(i - 2, i + 1)]
             if not (closes[1] < closes[0] and closes[2] < closes[1]):
                 continue
-            results.append({"name":"Three Black Crows","short":"3B-Crow","type":"bearish",
-                "bar_indices":[i-2,i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["High"].iloc[i-2:i+1].max()),"label_above":True})
+            results.append(
+                {
+                    "name": "Three Black Crows",
+                    "short": "3B-Crow",
+                    "type": "bearish",
+                    "bar_indices": [i - 2, i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["High"].iloc[i - 2 : i + 1].max()),
+                    "label_above": True,
+                }
+            )
         return results
 
     def _bullish_harami(self, df):
@@ -883,9 +1039,13 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,h1,l1,c1 = (float(df["Open"].iloc[i-1]), float(df["High"].iloc[i-1]),
-                           float(df["Low"].iloc[i-1]),  float(df["Close"].iloc[i-1]))
-            o2,c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            o1, h1, l1, c1 = (
+                float(df["Open"].iloc[i - 1]),
+                float(df["High"].iloc[i - 1]),
+                float(df["Low"].iloc[i - 1]),
+                float(df["Close"].iloc[i - 1]),
+            )
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
             if c1 >= o1:
                 continue  # bar1 must be bearish
             b1 = o1 - c1
@@ -897,9 +1057,18 @@ class PatternFinder:
                 continue  # bar2 body must be inside bar1 body
             if (c2 - o2) >= b1 * 0.5:
                 continue  # bar2 must be significantly smaller
-            results.append({"name":"Bullish Harami","short":"BullHarami","type":"bullish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["Low"].iloc[i]),"label_above":False})
+            results.append(
+                {
+                    "name": "Bullish Harami",
+                    "short": "BullHarami",
+                    "type": "bullish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["Low"].iloc[i]),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _bearish_harami(self, df):
@@ -907,9 +1076,13 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,h1,l1,c1 = (float(df["Open"].iloc[i-1]), float(df["High"].iloc[i-1]),
-                           float(df["Low"].iloc[i-1]),  float(df["Close"].iloc[i-1]))
-            o2,c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
+            o1, h1, l1, c1 = (
+                float(df["Open"].iloc[i - 1]),
+                float(df["High"].iloc[i - 1]),
+                float(df["Low"].iloc[i - 1]),
+                float(df["Close"].iloc[i - 1]),
+            )
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
             if c1 <= o1:
                 continue  # bar1 must be bullish
             b1 = c1 - o1
@@ -921,9 +1094,18 @@ class PatternFinder:
                 continue  # bar2 body inside bar1 body
             if (o2 - c2) >= b1 * 0.5:
                 continue
-            results.append({"name":"Bearish Harami","short":"BearHarami","type":"bearish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["High"].iloc[i]),"label_above":True})
+            results.append(
+                {
+                    "name": "Bearish Harami",
+                    "short": "BearHarami",
+                    "type": "bearish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["High"].iloc[i]),
+                    "label_above": True,
+                }
+            )
         return results
 
     def _tweezer_top(self, df):
@@ -935,22 +1117,34 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            h1 = float(df["High"].iloc[i-1])
+            h1 = float(df["High"].iloc[i - 1])
             h2 = float(df["High"].iloc[i])
-            if abs(h1 - h2) / max(h1, h2) > 0.0015:   # within 0.15%
+            if abs(h1 - h2) / max(h1, h2) > 0.0015:  # within 0.15%
                 continue
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,l2,c2 = (float(df["Open"].iloc[i]), float(df["Low"].iloc[i]),
-                        float(df["Close"].iloc[i]))
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, l2, c2 = (
+                float(df["Open"].iloc[i]),
+                float(df["Low"].iloc[i]),
+                float(df["Close"].iloc[i]),
+            )
             if c1 <= o1:
                 continue  # bar1 should be bullish (prior up-move)
             if c2 >= o2:
                 continue  # bar2 must be bearish (rejection)
             if c2 > (h2 + l2) / 2:
                 continue  # bar2 close in lower half (clear rejection)
-            results.append({"name":"Tweezer Top","short":"TwzTop","type":"bearish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":max(h1,h2),"label_above":True})
+            results.append(
+                {
+                    "name": "Tweezer Top",
+                    "short": "TwzTop",
+                    "type": "bearish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": max(h1, h2),
+                    "label_above": True,
+                }
+            )
         return results
 
     def _tweezer_bottom(self, df):
@@ -961,22 +1155,34 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            l1 = float(df["Low"].iloc[i-1])
+            l1 = float(df["Low"].iloc[i - 1])
             l2 = float(df["Low"].iloc[i])
-            if abs(l1 - l2) / max(l1, l2) > 0.0015:   # within 0.15%
+            if abs(l1 - l2) / max(l1, l2) > 0.0015:  # within 0.15%
                 continue
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,h2,c2 = (float(df["Open"].iloc[i]), float(df["High"].iloc[i]),
-                        float(df["Close"].iloc[i]))
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, h2, c2 = (
+                float(df["Open"].iloc[i]),
+                float(df["High"].iloc[i]),
+                float(df["Close"].iloc[i]),
+            )
             if c1 >= o1:
                 continue  # bar1 should be bearish (prior down-move)
             if c2 <= o2:
                 continue  # bar2 must be bullish (support reaction)
             if c2 < (h2 + l2) / 2:
                 continue  # bar2 close in upper half (clear bounce)
-            results.append({"name":"Tweezer Bottom","short":"TwzBot","type":"bullish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":min(l1,l2),"label_above":False})
+            results.append(
+                {
+                    "name": "Tweezer Bottom",
+                    "short": "TwzBot",
+                    "type": "bullish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": min(l1, l2),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _piercing_line(self, df):
@@ -987,8 +1193,8 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,c2 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
             if c1 >= o1 or c2 <= o2:
                 continue
             if o2 >= c1:
@@ -996,9 +1202,18 @@ class PatternFinder:
             mid1 = (o1 + c1) / 2
             if c2 <= mid1 or c2 >= o1:
                 continue  # must close above midpoint but below bar1 open
-            results.append({"name":"Piercing Line","short":"Pierce","type":"bullish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["Low"].iloc[i]),"label_above":False})
+            results.append(
+                {
+                    "name": "Piercing Line",
+                    "short": "Pierce",
+                    "type": "bullish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["Low"].iloc[i]),
+                    "label_above": False,
+                }
+            )
         return results
 
     def _dark_cloud_cover(self, df):
@@ -1009,8 +1224,8 @@ class PatternFinder:
         results = []
         start, n = self._recent_range(df)
         for i in range(start + 1, n):
-            o1,c1 = float(df["Open"].iloc[i-1]), float(df["Close"].iloc[i-1])
-            o2,c2 = float(df["Open"].iloc[i]),   float(df["Close"].iloc[i])
+            o1, c1 = float(df["Open"].iloc[i - 1]), float(df["Close"].iloc[i - 1])
+            o2, c2 = float(df["Open"].iloc[i]), float(df["Close"].iloc[i])
             if c1 <= o1 or c2 >= o2:
                 continue
             if o2 <= c1:
@@ -1018,7 +1233,16 @@ class PatternFinder:
             mid1 = (o1 + c1) / 2
             if c2 >= mid1 or c2 <= o1:
                 continue
-            results.append({"name":"Dark Cloud Cover","short":"DarkCloud","type":"bearish",
-                "bar_indices":[i-1,i],"completed_bar":i,"label_bar":i,
-                "label_price":float(df["High"].iloc[i]),"label_above":True})
+            results.append(
+                {
+                    "name": "Dark Cloud Cover",
+                    "short": "DarkCloud",
+                    "type": "bearish",
+                    "bar_indices": [i - 1, i],
+                    "completed_bar": i,
+                    "label_bar": i,
+                    "label_price": float(df["High"].iloc[i]),
+                    "label_above": True,
+                }
+            )
         return results

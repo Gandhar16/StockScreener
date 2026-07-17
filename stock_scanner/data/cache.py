@@ -86,6 +86,7 @@ def set_cached(key: str, value: Any) -> None:
     except (pickle.PickleError, OSError) as e:
         # Log error but don't fail the operation
         import logging
+
         logging.getLogger(__name__).warning(f"Failed to write cache {key}: {e}")
 
 
@@ -101,6 +102,7 @@ def cached(ttl: int = DEFAULT_TTL, prefix: str = "") -> Callable[[Callable[P, R]
         def fetch_fundamentals(ticker: str, year: int) -> dict:
             ...
     """
+
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -119,6 +121,7 @@ def cached(ttl: int = DEFAULT_TTL, prefix: str = "") -> Callable[[Callable[P, R]
             return result
 
         return wrapper
+
     return decorator
 
 

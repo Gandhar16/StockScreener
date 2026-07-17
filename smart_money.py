@@ -39,29 +39,55 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("smart_money")
 
 DEFAULT_TICKERS = [
-    "AAPL", "MSFT", "GOOGL", "NVDA", "META", "AMZN", "TSLA",
-    "JPM", "V", "MA", "WMT", "KO", "JNJ", "LLY", "BAC",
-    "RELIANCE.NS", "INFY.NS", "TCS.NS", "HDFCBANK.NS",
+    "AAPL",
+    "MSFT",
+    "GOOGL",
+    "NVDA",
+    "META",
+    "AMZN",
+    "TSLA",
+    "JPM",
+    "V",
+    "MA",
+    "WMT",
+    "KO",
+    "JNJ",
+    "LLY",
+    "BAC",
+    "RELIANCE.NS",
+    "INFY.NS",
+    "TCS.NS",
+    "HDFCBANK.NS",
 ]
 
 CONGRESS_LOOKBACK_DAYS = 90
-INSIDER_LOOKBACK_DAYS  = 60
-REQUEST_TIMEOUT        = 20   # seconds
+INSIDER_LOOKBACK_DAYS = 60
+REQUEST_TIMEOUT = 20  # seconds
 
 # Congressional disclosure data — public GitHub mirrors (maintained by the community)
 # Primary: raw GitHub exports from house/senate stock watcher projects
 # Fallback: official government portals (web only, no machine-readable API)
 CONGRESS_SOURCES = [
     # GitHub-hosted mirrors — usually the most up-to-date free source
-    ("House",   "https://raw.githubusercontent.com/AlejandroHerr/house-stock-watcher-data/main/data/all_transactions.json"),
-    ("Senate",  "https://raw.githubusercontent.com/AlejandroHerr/senate-stock-watcher-data/main/aggregate/all_transactions.json"),
+    (
+        "House",
+        "https://raw.githubusercontent.com/AlejandroHerr/house-stock-watcher-data/main/data/all_transactions.json",
+    ),
+    (
+        "Senate",
+        "https://raw.githubusercontent.com/AlejandroHerr/senate-stock-watcher-data/main/aggregate/all_transactions.json",
+    ),
     # S3 buckets (original source — may be inaccessible)
-    ("House",   "https://house-stock-watcher-data.s3.amazonaws.com/data/all_transactions.json"),
-    ("Senate",  "https://senate-stock-watcher-data.s3.amazonaws.com/aggregate/all_transactions.json"),
+    ("House", "https://house-stock-watcher-data.s3.amazonaws.com/data/all_transactions.json"),
+    (
+        "Senate",
+        "https://senate-stock-watcher-data.s3.amazonaws.com/aggregate/all_transactions.json",
+    ),
 ]
 
 
 # ── helpers ────────────────────────────────────────────────────────────────────
+
 
 def _safe_date(val) -> datetime | None:
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -83,6 +109,7 @@ def _amount_sort_key(amount_str: str) -> int:
     if not amount_str:
         return 0
     import re
+
     nums = re.findall(r"[\d,]+", amount_str.replace(",", ""))
     try:
         return int(nums[0]) if nums else 0
@@ -91,6 +118,7 @@ def _amount_sort_key(amount_str: str) -> int:
 
 
 # ── Congress data ──────────────────────────────────────────────────────────────
+
 
 def fetch_congress_data(lookback_days: int) -> dict[str, list[dict]]:
     """
@@ -136,15 +164,15 @@ def fetch_congress_data(lookback_days: int) -> dict[str, list[dict]]:
 
             member = (row.get("representative") or row.get("senator") or "Unknown").strip()
             amount = str(row.get("amount") or "").strip()
-            asset  = str(row.get("asset_description") or "").strip()[:60]
+            asset = str(row.get("asset_description") or "").strip()[:60]
 
             trade = {
-                "member":    member,
-                "chamber":   chamber,
+                "member": member,
+                "chamber": chamber,
                 "direction": direction,
-                "amount":    amount,
-                "date":      tx_date.strftime("%Y-%m-%d"),
-                "asset":     asset,
+                "amount": amount,
+                "date": tx_date.strftime("%Y-%m-%d"),
+                "asset": asset,
                 "amount_num": _amount_sort_key(amount),
             }
 
@@ -155,6 +183,7 @@ def fetch_congress_data(lookback_days: int) -> dict[str, list[dict]]:
 
 # ── Insider data ───────────────────────────────────────────────────────────────
 
+
 def fetch_insider_data(ticker: str, lookback_days: int) -> dict[str, Any]:
     """Fetch recent insider transactions from yfinance."""
     cutoff = datetime.now() - timedelta(days=lookback_days)
@@ -162,7 +191,13 @@ def fetch_insider_data(ticker: str, lookback_days: int) -> dict[str, Any]:
         t = yf.Ticker(ticker)
         df = t.insider_transactions
         if df is None or df.empty:
-            return {"signal": "NEUTRAL", "recent": [], "buy_count": 0, "sell_count": 0, "net_shares": 0}
+            return {
+                "signal": "NEUTRAL",
+                "recent": [],
+                "buy_count": 0,
+                "sell_count": 0,
+                "net_shares": 0,
+            }
     except Exception:
         return {"signal": "NEUTRAL", "recent": [], "buy_count": 0, "sell_count": 0, "net_shares": 0}
 
@@ -177,33 +212,41 @@ def fetch_insider_data(ticker: str, lookback_days: int) -> dict[str, Any]:
 
         # yfinance puts trade info in `Text` column ("Sale at price X" or "Purchase at price X")
         # The `Transaction` column is often empty — check both
-        tx_text = (str(row.get("Text") or "") + " " +
-                   str(row.get("Transaction") or "")).lower()
-        shares  = int(row.get("Shares") or row.get("shares") or 0)
-        value   = float(row.get("Value") or row.get("value") or 0)
-        name    = str(row.get("Insider") or row.get("insider") or row.get("Name") or "").strip()
-        role    = str(row.get("Position") or row.get("Relationship") or row.get("relationship") or "").strip()
+        tx_text = (str(row.get("Text") or "") + " " + str(row.get("Transaction") or "")).lower()
+        shares = int(row.get("Shares") or row.get("shares") or 0)
+        value = float(row.get("Value") or row.get("value") or 0)
+        name = str(row.get("Insider") or row.get("insider") or row.get("Name") or "").strip()
+        role = str(
+            row.get("Position") or row.get("Relationship") or row.get("relationship") or ""
+        ).strip()
 
         if "sale" in tx_text or "sold" in tx_text:
             direction = "SELL"
             sell_shares += abs(shares)
-            sell_count  += 1
-        elif "purchase" in tx_text or "buy" in tx_text or "acquired" in tx_text or "acquisition" in tx_text:
+            sell_count += 1
+        elif (
+            "purchase" in tx_text
+            or "buy" in tx_text
+            or "acquired" in tx_text
+            or "acquisition" in tx_text
+        ):
             direction = "BUY"
             buy_shares += abs(shares)
-            buy_count  += 1
+            buy_count += 1
         else:
             direction = "OTHER"
 
         if direction in ("BUY", "SELL"):
-            recent.append({
-                "name":      name[:40],
-                "role":      role[:40],
-                "direction": direction,
-                "shares":    abs(shares),
-                "value":     round(value, 0),
-                "date":      tx_date.strftime("%Y-%m-%d") if tx_date else "—",
-            })
+            recent.append(
+                {
+                    "name": name[:40],
+                    "role": role[:40],
+                    "direction": direction,
+                    "shares": abs(shares),
+                    "value": round(value, 0),
+                    "date": tx_date.strftime("%Y-%m-%d") if tx_date else "—",
+                }
+            )
 
     recent.sort(key=lambda x: x["date"], reverse=True)
     recent = recent[:10]
@@ -219,15 +262,16 @@ def fetch_insider_data(ticker: str, lookback_days: int) -> dict[str, Any]:
         signal = "MIXED"
 
     return {
-        "signal":      signal,
-        "recent":      recent,
-        "buy_count":   buy_count,
-        "sell_count":  sell_count,
-        "net_shares":  net,
+        "signal": signal,
+        "recent": recent,
+        "buy_count": buy_count,
+        "sell_count": sell_count,
+        "net_shares": net,
     }
 
 
 # ── Hedge fund data ────────────────────────────────────────────────────────────
+
 
 def fetch_hf_data(ticker: str) -> dict[str, Any]:
     """Fetch top institutional holders from yfinance (13F data)."""
@@ -241,23 +285,25 @@ def fetch_hf_data(ticker: str) -> dict[str, Any]:
 
     holders = []
     for _, row in df.iterrows():
-        name   = str(row.get("Holder") or "").strip()
+        name = str(row.get("Holder") or "").strip()
         shares = int(row.get("Shares") or 0)
         # yfinance column names changed: pctHeld (0.0779) and pctChange (-0.0086)
         pct_raw = float(row.get("pctHeld") or row.get("% Out") or 0)
-        pct     = pct_raw * 100 if pct_raw < 1 else pct_raw   # normalize to %
+        pct = pct_raw * 100 if pct_raw < 1 else pct_raw  # normalize to %
         chg_raw = float(row.get("pctChange") or row.get("% Change") or 0)
         # yfinance stores as decimal fraction: 0.0296 = +2.96%, -0.0086 = -0.86%
         chg = max(-99.0, min(99.0, chg_raw * 100))
-        date_r  = _safe_date(row.get("Date Reported") or row.get("dateReported"))
+        date_r = _safe_date(row.get("Date Reported") or row.get("dateReported"))
 
-        holders.append({
-            "name":        name[:45],
-            "shares":      shares,
-            "pct_held":    round(pct, 2),
-            "change_pct":  round(chg, 2),
-            "date_reported": date_r.strftime("%Y-%m-%d") if date_r else "—",
-        })
+        holders.append(
+            {
+                "name": name[:45],
+                "shares": shares,
+                "pct_held": round(pct, 2),
+                "change_pct": round(chg, 2),
+                "date_reported": date_r.strftime("%Y-%m-%d") if date_r else "—",
+            }
+        )
 
     holders = holders[:8]
 
@@ -276,6 +322,7 @@ def fetch_hf_data(ticker: str) -> dict[str, Any]:
 
 # ── News summary ───────────────────────────────────────────────────────────────
 
+
 def load_news_from_equity_calls(tickers: list[str]) -> dict[str, dict]:
     """Pull latest news/sentiment from existing equity_calls.json to avoid re-running FinBERT."""
     news_map: dict[str, dict] = {}
@@ -291,8 +338,8 @@ def load_news_from_equity_calls(tickers: list[str]) -> dict[str, dict]:
                         news_map[t] = {
                             "sentiment_label": call.get("sentiment_label", "NEUTRAL"),
                             "sentiment_score": call.get("sentiment_score", 0),
-                            "top_headlines":   call.get("top_headlines", []),
-                            "news_count":      call.get("news_count", 0),
+                            "top_headlines": call.get("top_headlines", []),
+                            "news_count": call.get("news_count", 0),
                         }
             except Exception:
                 pass
@@ -305,26 +352,33 @@ def load_news_from_equity_calls(tickers: list[str]) -> dict[str, dict]:
             try:
                 info = yf.Ticker(t)
                 raw_news = info.news or []
-                headlines = [n.get("content", {}).get("title") or n.get("title", "")
-                             for n in raw_news[:5] if n]
+                headlines = [
+                    n.get("content", {}).get("title") or n.get("title", "")
+                    for n in raw_news[:5]
+                    if n
+                ]
                 headlines = [h for h in headlines if h]
                 news_map[t] = {
                     "sentiment_label": "NEUTRAL",
                     "sentiment_score": 0,
-                    "top_headlines":   headlines,
-                    "news_count":      len(raw_news),
+                    "top_headlines": headlines,
+                    "news_count": len(raw_news),
                 }
             except Exception:
-                news_map[t] = {"sentiment_label": "NEUTRAL", "sentiment_score": 0,
-                                "top_headlines": [], "news_count": 0}
+                news_map[t] = {
+                    "sentiment_label": "NEUTRAL",
+                    "sentiment_score": 0,
+                    "top_headlines": [],
+                    "news_count": 0,
+                }
 
     return news_map
 
 
 # ── main aggregator ────────────────────────────────────────────────────────────
 
-def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
 
+def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
     # 1. Congress (one batch call for all tickers)
     congress_all = fetch_congress_data(lookback_days)
 
@@ -336,12 +390,12 @@ def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
 
     for ticker in tickers:
         insider = fetch_insider_data(ticker, INSIDER_LOOKBACK_DAYS)
-        hf      = fetch_hf_data(ticker)
+        hf = fetch_hf_data(ticker)
 
         # Match congressional trades for this ticker
         base_ticker = ticker.replace(".NS", "").replace(".BO", "").upper()
         cong_trades = congress_all.get(base_ticker, [])
-        buy_cong  = [t for t in cong_trades if t["direction"] == "BUY"]
+        buy_cong = [t for t in cong_trades if t["direction"] == "BUY"]
         sell_cong = [t for t in cong_trades if t["direction"] == "SELL"]
 
         if len(buy_cong) > len(sell_cong) * 1.5 and buy_cong:
@@ -354,22 +408,37 @@ def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
             cong_signal = "NONE"
 
         # Sort by amount (largest first) then by date
-        cong_trades_sorted = sorted(cong_trades, key=lambda x: (-x["amount_num"], x["date"]), reverse=False)
+        cong_trades_sorted = sorted(
+            cong_trades, key=lambda x: (-x["amount_num"], x["date"]), reverse=False
+        )
         cong_trades_sorted.sort(key=lambda x: x["date"], reverse=True)
 
-        news = news_all.get(ticker, {"sentiment_label": "NEUTRAL", "sentiment_score": 0,
-                                      "top_headlines": [], "news_count": 0})
+        news = news_all.get(
+            ticker,
+            {
+                "sentiment_label": "NEUTRAL",
+                "sentiment_score": 0,
+                "top_headlines": [],
+                "news_count": 0,
+            },
+        )
 
         # Overall smart money verdict
         signals = []
-        if insider["signal"] in ("BUYING",):   signals.append("BUY")
-        if insider["signal"] in ("SELLING",):  signals.append("SELL")
-        if cong_signal in ("BUYING",):         signals.append("BUY")
-        if cong_signal in ("SELLING",):        signals.append("SELL")
-        if hf["net_signal"] == "INCREASING":   signals.append("BUY")
-        if hf["net_signal"] == "DECREASING":   signals.append("SELL")
+        if insider["signal"] in ("BUYING",):
+            signals.append("BUY")
+        if insider["signal"] in ("SELLING",):
+            signals.append("SELL")
+        if cong_signal in ("BUYING",):
+            signals.append("BUY")
+        if cong_signal in ("SELLING",):
+            signals.append("SELL")
+        if hf["net_signal"] == "INCREASING":
+            signals.append("BUY")
+        if hf["net_signal"] == "DECREASING":
+            signals.append("SELL")
 
-        buy_votes  = signals.count("BUY")
+        buy_votes = signals.count("BUY")
         sell_votes = signals.count("SELL")
 
         if buy_votes > sell_votes:
@@ -382,30 +451,30 @@ def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
             overall = "NEUTRAL"
 
         ticker_data[ticker] = {
-            "ticker":  ticker,
+            "ticker": ticker,
             "overall": overall,
             "insiders": {
-                "signal":     insider["signal"],
-                "buy_count":  insider["buy_count"],
+                "signal": insider["signal"],
+                "buy_count": insider["buy_count"],
                 "sell_count": insider["sell_count"],
                 "net_shares": insider["net_shares"],
-                "recent":     insider["recent"][:6],
+                "recent": insider["recent"][:6],
             },
             "congress": {
-                "signal":     cong_signal,
-                "buy_count":  len(buy_cong),
+                "signal": cong_signal,
+                "buy_count": len(buy_cong),
                 "sell_count": len(sell_cong),
-                "recent":     cong_trades_sorted[:8],
+                "recent": cong_trades_sorted[:8],
             },
             "hedge_funds": {
-                "net_signal":  hf["net_signal"],
+                "net_signal": hf["net_signal"],
                 "top_holders": hf["top_holders"],
             },
             "news": {
                 "sentiment_label": news["sentiment_label"],
                 "sentiment_score": round(float(news["sentiment_score"] or 0), 3),
-                "top_headlines":   news["top_headlines"][:5],
-                "news_count":      news["news_count"],
+                "top_headlines": news["top_headlines"][:5],
+                "news_count": news["news_count"],
             },
         }
 
@@ -419,15 +488,22 @@ def generate_smart_money(tickers: list[str], lookback_days: int) -> dict:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--tickers", type=str, default=None)
-    p.add_argument("--days",    type=int, default=CONGRESS_LOOKBACK_DAYS,
-                   help="Lookback window in days for congress + insider data (default 90)")
+    p.add_argument(
+        "--days",
+        type=int,
+        default=CONGRESS_LOOKBACK_DAYS,
+        help="Lookback window in days for congress + insider data (default 90)",
+    )
     return p.parse_args()
 
 
 def main():
     args = parse_args()
-    tickers = ([t.strip().upper() for t in args.tickers.split(",") if t.strip()]
-               if args.tickers else DEFAULT_TICKERS)
+    tickers = (
+        [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+        if args.tickers
+        else DEFAULT_TICKERS
+    )
 
     result = generate_smart_money(tickers, args.days)
 
@@ -435,7 +511,6 @@ def main():
     out_path = "dashboard/smart_money.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
-
 
     # Print quick summary
     for _ticker, _d in result["tickers"].items():

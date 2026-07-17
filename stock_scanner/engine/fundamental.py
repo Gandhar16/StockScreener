@@ -18,24 +18,24 @@ logger = logging.getLogger(__name__)
 
 def _get_val_as_of_year(series: pd.Series, as_of_year: int | None) -> float:
     if series.empty:
-        return float('nan')
+        return float("nan")
     series = series.dropna()
     if series.empty:
-        return float('nan')
+        return float("nan")
     if as_of_year is None:
         return float(series.iloc[-1])
 
     valid_years = []
     for idx in series.index:
         try:
-            y = int(str(idx).split('-')[0])
+            y = int(str(idx).split("-")[0])
             if y <= as_of_year:
                 valid_years.append((y, idx))
         except ValueError:
             pass
 
     if not valid_years:
-        return float('nan')
+        return float("nan")
 
     _best_y, best_idx = max(valid_years, key=lambda x: x[0])
     return float(series.loc[best_idx])
@@ -43,22 +43,22 @@ def _get_val_as_of_year(series: pd.Series, as_of_year: int | None) -> float:
 
 def _get_avg_val_as_of_year(series: pd.Series, n: int, as_of_year: int | None) -> float:
     if series.empty:
-        return float('nan')
+        return float("nan")
     series = series.dropna()
     if series.empty:
-        return float('nan')
+        return float("nan")
     if as_of_year is not None:
         valid_indices = []
         for idx in series.index:
             try:
-                y = int(str(idx).split('-')[0])
+                y = int(str(idx).split("-")[0])
                 if y <= as_of_year:
                     valid_indices.append(idx)
             except ValueError:
                 pass
         series = series.loc[valid_indices]
         if series.empty:
-            return float('nan')
+            return float("nan")
     return float(series.iloc[-n:].mean())
 
 
@@ -76,6 +76,7 @@ class FundamentalEngine:
     Uses yfinance for fundamental data extraction (no API key required).
     Supports point-in-time historical backtesting via as_of_year.
     """
+
     def __init__(self, config: ScannerConfig):
         self.config = config
         self.provider = DataProvider(config)
@@ -95,14 +96,18 @@ class FundamentalEngine:
         all_dfs = []
         for i in range(0, len(tickers), batch_size):
             batch_tickers = tickers[i : i + batch_size]
-            logger.info(f"Processing batch {i//batch_size + 1} of {(len(tickers) + batch_size - 1)//batch_size}: {batch_tickers} (As Of: {as_of_year})")
+            logger.info(
+                f"Processing batch {i//batch_size + 1} of {(len(tickers) + batch_size - 1)//batch_size}: {batch_tickers} (As Of: {as_of_year})"
+            )
 
             try:
                 batch_df = self._analyze_batch(batch_tickers, as_of_year=as_of_year)
                 if not batch_df.empty:
                     all_dfs.append(batch_df)
             except Exception as e:
-                logger.error(f"Error processing fundamental batch {batch_tickers}: {e}", exc_info=True)
+                logger.error(
+                    f"Error processing fundamental batch {batch_tickers}: {e}", exc_info=True
+                )
 
             # Sleep between batches if this is not the last batch
             if i + batch_size < len(tickers) and delay > 0:
@@ -115,7 +120,9 @@ class FundamentalEngine:
         combined_df = pd.concat(all_dfs, ignore_index=True)
         if not combined_df.empty:
             combined_df = self._apply_peer_percentiles(combined_df)
-            combined_df = combined_df.sort_values(by="total_score", ascending=False).reset_index(drop=True)
+            combined_df = combined_df.sort_values(by="total_score", ascending=False).reset_index(
+                drop=True
+            )
         return combined_df
 
     def _analyze_batch(self, tickers: list[str], as_of_year: int | None = None) -> pd.DataFrame:
@@ -146,9 +153,7 @@ class FundamentalEngine:
 
                 # 2. Extract metrics dictionary
                 metrics = self._extract_ticker_metrics(
-                    ticker=ticker,
-                    yf_info=yf_info,
-                    as_of_year=as_of_year
+                    ticker=ticker, yf_info=yf_info, as_of_year=as_of_year
                 )
 
                 # 3. Resolve sector config
@@ -158,8 +163,21 @@ class FundamentalEngine:
                     is_fin = "financial" in sector.lower() or "bank" in sector.lower()
 
                     if is_fin:
-                        relevant_metrics = ["roe", "equity_multiplier", "price_to_book", "dividend_yield", "operating_margin"]
-                        irrelevant_metrics = ["current_ratio", "debt_to_equity", "fcf_to_net_income", "ev_to_ebitda", "price_to_sales", "gross_margin"]
+                        relevant_metrics = [
+                            "roe",
+                            "equity_multiplier",
+                            "price_to_book",
+                            "dividend_yield",
+                            "operating_margin",
+                        ]
+                        irrelevant_metrics = [
+                            "current_ratio",
+                            "debt_to_equity",
+                            "fcf_to_net_income",
+                            "ev_to_ebitda",
+                            "price_to_sales",
+                            "gross_margin",
+                        ]
                         pref_val_methods = ["price_to_book", "price_to_earnings"]
                     else:
                         relevant_metrics = list(self.config.scoring_ranges.model_fields.keys())
@@ -175,21 +193,27 @@ class FundamentalEngine:
                             "valuation": self.config.weights.graham_safety * 0.6,
                             "financial_risk": self.config.weights.graham_safety * 0.4,
                             "growth": self.config.weights.fisher_growth,
-                            "capital_allocation": 0.0
+                            "capital_allocation": 0.0,
                         },
-                        "scoring_ranges": self.config.scoring_ranges.model_dump() if hasattr(self.config.scoring_ranges, "model_dump") else self.config.scoring_ranges
+                        "scoring_ranges": self.config.scoring_ranges.model_dump()
+                        if hasattr(self.config.scoring_ranges, "model_dump")
+                        else self.config.scoring_ranges,
                     }
                 if not sect_config:
                     sect_config = get_sector_config(sector, industry)
                     if hasattr(self.config, "scoring_ranges") and self.config.scoring_ranges:
-                        sect_config["scoring_ranges"] = self.config.scoring_ranges.model_dump() if hasattr(self.config.scoring_ranges, "model_dump") else self.config.scoring_ranges
+                        sect_config["scoring_ranges"] = (
+                            self.config.scoring_ranges.model_dump()
+                            if hasattr(self.config.scoring_ranges, "model_dump")
+                            else self.config.scoring_ranges
+                        )
                     if hasattr(self.config, "weights") and self.config.weights:
                         sect_config["weights"] = {
                             "business_quality": self.config.weights.buffett_quality,
                             "valuation": self.config.weights.graham_safety * 0.6,
                             "financial_risk": self.config.weights.graham_safety * 0.4,
                             "growth": self.config.weights.fisher_growth,
-                            "capital_allocation": 0.0
+                            "capital_allocation": 0.0,
                         }
 
                 # 4. Red flag check
@@ -209,11 +233,11 @@ class FundamentalEngine:
                 # Calculate total score
                 w = sect_config.get("weights", {})
                 total_score = (
-                    scores.get("business_quality", 50.0) * w.get("business_quality", 0.25) +
-                    scores.get("valuation", 50.0) * w.get("valuation", 0.25) +
-                    scores.get("financial_risk", 50.0) * w.get("financial_risk", 0.20) +
-                    scores.get("growth", 50.0) * w.get("growth", 0.20) +
-                    scores.get("capital_allocation", 50.0) * w.get("capital_allocation", 0.10)
+                    scores.get("business_quality", 50.0) * w.get("business_quality", 0.25)
+                    + scores.get("valuation", 50.0) * w.get("valuation", 0.25)
+                    + scores.get("financial_risk", 50.0) * w.get("financial_risk", 0.20)
+                    + scores.get("growth", 50.0) * w.get("growth", 0.20)
+                    + scores.get("capital_allocation", 50.0) * w.get("capital_allocation", 0.10)
                 )
 
                 # 6. Generate qualitative analysis
@@ -222,82 +246,97 @@ class FundamentalEngine:
                     red_flags=flags,
                     is_disqualified=is_disq,
                     metrics=metrics,
-                    sector=sector
+                    sector=sector,
                 )
 
                 # 6. Backward-compatible mapping for V1 tests/outputs
-                graham_score = (scores.get("valuation", 50.0) + scores.get("financial_risk", 50.0)) / 2.0
+                graham_score = (
+                    scores.get("valuation", 50.0) + scores.get("financial_risk", 50.0)
+                ) / 2.0
                 fisher_score = scores.get("growth", 50.0)
                 buffett_score = scores.get("business_quality", 50.0)
 
                 graham_details = {
-                    "current_ratio_score": details["financial_risk_details"].get("current_ratio_score", 50.0),
-                    "debt_to_equity_score": details["financial_risk_details"].get("debt_to_equity_score", 50.0),
-                    "pe_score": details["valuation_details"].get("pe_score", 50.0)
+                    "current_ratio_score": details["financial_risk_details"].get(
+                        "current_ratio_score", 50.0
+                    ),
+                    "debt_to_equity_score": details["financial_risk_details"].get(
+                        "debt_to_equity_score", 50.0
+                    ),
+                    "pe_score": details["valuation_details"].get("pe_score", 50.0),
                 }
                 fisher_details = {
-                    "revenue_growth_score": details["growth_details"].get("revenue_growth_score", 50.0),
+                    "revenue_growth_score": details["growth_details"].get(
+                        "revenue_growth_score", 50.0
+                    ),
                     "eps_growth_score": details["growth_details"].get("eps_growth_score", 50.0),
-                    "rd_intensity_score": details["capital_allocation_details"].get("reinvestment_score", 50.0)
+                    "rd_intensity_score": details["capital_allocation_details"].get(
+                        "reinvestment_score", 50.0
+                    ),
                 }
                 buffett_details = {
                     "roic_score": details["business_quality_details"].get("roic_score", 50.0),
-                    "operating_margin_score": details["business_quality_details"].get("operating_margin_score", 50.0),
-                    "fcf_net_income_score": details["business_quality_details"].get("earnings_quality_score", 50.0)
+                    "operating_margin_score": details["business_quality_details"].get(
+                        "operating_margin_score", 50.0
+                    ),
+                    "fcf_net_income_score": details["business_quality_details"].get(
+                        "earnings_quality_score", 50.0
+                    ),
                 }
 
-                records.append({
-                    "ticker": ticker,
-                    # V1 metrics
-                    "current_ratio": metrics.get("current_ratio_ttm"),
-                    "debt_to_equity": metrics.get("debt_to_equity_ttm"),
-                    "pe_ratio": metrics.get("pe_ratio_ttm"),
-                    "revenue_growth_3y": metrics.get("revenue_growth_3y_avg"),
-                    "eps_growth_3y": metrics.get("eps_growth_3y_avg"),
-                    "rd_intensity": metrics.get("rd_intensity"),
-                    "roic_3y": metrics.get("roic_3y_avg"),
-                    "operating_margin": metrics.get("operating_margin_ttm"),
-                    "fcf_to_net_income": metrics.get("fcf_to_net_income_ttm"),
-                    "graham_score": graham_score,
-                    "fisher_score": fisher_score,
-                    "buffett_score": buffett_score,
-                    "graham_details": graham_details,
-                    "fisher_details": fisher_details,
-                    "buffett_details": buffett_details,
-
-                    # V2 sub-scores
-                    "business_quality_score": scores.get("business_quality", 50.0),
-                    "valuation_score": scores.get("valuation", 50.0),
-                    "financial_risk_score": scores.get("financial_risk", 50.0),
-                    "growth_score": scores.get("growth", 50.0),
-                    "capital_allocation_score": scores.get("capital_allocation", 50.0),
-                    "total_score": total_score,
-
-                    # V2 explanation & rating details
-                    "rating": rating,
-                    "category": category,
-                    "strengths": strengths,
-                    "weaknesses": weaknesses,
-                    "risks": risks,
-                    "red_flags": flags,
-                    "is_disqualified": is_disq,
-                    "sector": sector,
-                    "industry": industry,
-
-                    # V3 trader-grade additions (additive)
-                    "accruals_ratio": metrics.get("accruals_ratio"),
-                    "rev_cagr_stability": metrics.get("rev_cagr_stability"),
-                    "piotroski_f": metrics.get("piotroski_f"),
-                    "piotroski_max": metrics.get("piotroski_max"),
-                    "ev_to_ebitda": metrics.get("ev_to_ebitda"),
-                    "_w_valuation": 0.25,
-                })
+                records.append(
+                    {
+                        "ticker": ticker,
+                        # V1 metrics
+                        "current_ratio": metrics.get("current_ratio_ttm"),
+                        "debt_to_equity": metrics.get("debt_to_equity_ttm"),
+                        "pe_ratio": metrics.get("pe_ratio_ttm"),
+                        "revenue_growth_3y": metrics.get("revenue_growth_3y_avg"),
+                        "eps_growth_3y": metrics.get("eps_growth_3y_avg"),
+                        "rd_intensity": metrics.get("rd_intensity"),
+                        "roic_3y": metrics.get("roic_3y_avg"),
+                        "operating_margin": metrics.get("operating_margin_ttm"),
+                        "fcf_to_net_income": metrics.get("fcf_to_net_income_ttm"),
+                        "graham_score": graham_score,
+                        "fisher_score": fisher_score,
+                        "buffett_score": buffett_score,
+                        "graham_details": graham_details,
+                        "fisher_details": fisher_details,
+                        "buffett_details": buffett_details,
+                        # V2 sub-scores
+                        "business_quality_score": scores.get("business_quality", 50.0),
+                        "valuation_score": scores.get("valuation", 50.0),
+                        "financial_risk_score": scores.get("financial_risk", 50.0),
+                        "growth_score": scores.get("growth", 50.0),
+                        "capital_allocation_score": scores.get("capital_allocation", 50.0),
+                        "total_score": total_score,
+                        # V2 explanation & rating details
+                        "rating": rating,
+                        "category": category,
+                        "strengths": strengths,
+                        "weaknesses": weaknesses,
+                        "risks": risks,
+                        "red_flags": flags,
+                        "is_disqualified": is_disq,
+                        "sector": sector,
+                        "industry": industry,
+                        # V3 trader-grade additions (additive)
+                        "accruals_ratio": metrics.get("accruals_ratio"),
+                        "rev_cagr_stability": metrics.get("rev_cagr_stability"),
+                        "piotroski_f": metrics.get("piotroski_f"),
+                        "piotroski_max": metrics.get("piotroski_max"),
+                        "ev_to_ebitda": metrics.get("ev_to_ebitda"),
+                        "_w_valuation": 0.25,
+                    }
+                )
             except Exception as e:
                 logger.error(f"Error analyzing fundamentals for {ticker}: {e}", exc_info=True)
 
         result_df = pd.DataFrame(records)
         if not result_df.empty:
-            result_df = result_df.sort_values(by="total_score", ascending=False).reset_index(drop=True)
+            result_df = result_df.sort_values(by="total_score", ascending=False).reset_index(
+                drop=True
+            )
         return result_df
 
     def _apply_peer_percentiles(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -305,17 +344,22 @@ class FundamentalEngine:
         if df.empty:
             return df
         # Add percentile columns for key metrics
-        for col in ["pe_ratio", "price_to_book", "ev_to_ebitda", "price_to_sales",
-                    "roe_ttm", "roic_ttm", "operating_margin_ttm", "revenue_growth_ttm"]:
+        for col in [
+            "pe_ratio",
+            "price_to_book",
+            "ev_to_ebitda",
+            "price_to_sales",
+            "roe_ttm",
+            "roic_ttm",
+            "operating_margin_ttm",
+            "revenue_growth_ttm",
+        ]:
             if col in df.columns:
                 df[f"{col}_pct"] = df[col].rank(pct=True) * 100
         return df
 
     def _extract_ticker_metrics(
-        self,
-        ticker: str,
-        yf_info: dict,
-        as_of_year: int | None = None
+        self, ticker: str, yf_info: dict, as_of_year: int | None = None
     ) -> dict[str, Any]:
         """
         Extracts and prepares all numerical metrics required for V2 scoring and red-flag checks.
@@ -369,14 +413,20 @@ class FundamentalEngine:
             metrics["price_to_book"] = yf_info.get("priceToBook", float("nan"))
             metrics["ev_to_ebitda"] = yf_info.get("enterpriseToEbitda", float("nan"))
             metrics["price_to_sales"] = yf_info.get("priceToSalesTrailing12Months", float("nan"))
-            metrics["price_to_fcf"] = yf_info.get("marketCap", 0) / max(yf_info.get("freeCashflow", 1), 1) if yf_info.get("freeCashflow") else float("nan")
+            metrics["price_to_fcf"] = (
+                yf_info.get("marketCap", 0) / max(yf_info.get("freeCashflow", 1), 1)
+                if yf_info.get("freeCashflow")
+                else float("nan")
+            )
             metrics["dividend_yield"] = yf_info.get("dividendYield", float("nan"))
 
             metrics["operating_margin_ttm"] = yf_info.get("operatingMargins", float("nan"))
             metrics["gross_margin_ttm"] = yf_info.get("grossMargins", float("nan"))
 
             metrics["roe_ttm"] = yf_info.get("returnOnEquity", float("nan"))
-            metrics["roe_3y_avg"] = yf_info.get("returnOnEquity", float("nan"))  # yfinance doesn't provide 3y avg
+            metrics["roe_3y_avg"] = yf_info.get(
+                "returnOnEquity", float("nan")
+            )  # yfinance doesn't provide 3y avg
 
             # Try to get ROIC from yfinance, otherwise calculate from statements
             roic_yf = yf_info.get("returnOnInvestedCapital", float("nan"))
@@ -400,7 +450,11 @@ class FundamentalEngine:
                     tax_rate = tax / pretax if pretax and pretax != 0 else 0.21
 
                     # NOPAT
-                    nopat = op_income * (1 - tax_rate) if op_income and not pd.isna(op_income) else float("nan")
+                    nopat = (
+                        op_income * (1 - tax_rate)
+                        if op_income and not pd.isna(op_income)
+                        else float("nan")
+                    )
 
                     # Invested Capital = Total Debt + Total Equity - Cash
                     total_debt_series = get_series(bal_df, "Total Debt")
@@ -672,8 +726,8 @@ class FundamentalEngine:
                         # Calculate year-over-year growth rates
                         growth_rates = []
                         for i in range(len(revs) - 1):
-                            if revs[i+1] != 0:
-                                growth_rates.append((revs[i] - revs[i+1]) / revs[i+1])
+                            if revs[i + 1] != 0:
+                                growth_rates.append((revs[i] - revs[i + 1]) / revs[i + 1])
                         if growth_rates:
                             metrics["rev_cagr_stability"] = float(np.std(growth_rates))
                         else:
@@ -713,14 +767,18 @@ class FundamentalEngine:
                 try:
                     de_current = metrics["debt_to_equity_ttm"]
                     # Get previous year's balance sheet
-                    bal_prev = bal_df.iloc[:, 1] if bal_df is not None and bal_df.shape[1] > 1 else None
+                    bal_prev = (
+                        bal_df.iloc[:, 1] if bal_df is not None and bal_df.shape[1] > 1 else None
+                    )
                     if bal_prev is not None:
                         total_debt_prev = get_series(pd.DataFrame(bal_prev).T, "Total Debt")
                         if total_debt_prev.empty:
                             total_debt_prev = get_series(pd.DataFrame(bal_prev).T, "Long Term Debt")
                         equity_prev = get_series(pd.DataFrame(bal_prev).T, "Total Equity")
                         if equity_prev.empty:
-                            equity_prev = get_series(pd.DataFrame(bal_prev).T, "Stockholders Equity")
+                            equity_prev = get_series(
+                                pd.DataFrame(bal_prev).T, "Stockholders Equity"
+                            )
                         debt_prev = get_latest(total_debt_prev)
                         equity_prev_val = get_latest(equity_prev)
                         if debt_prev and equity_prev_val and equity_prev_val != 0:
@@ -775,7 +833,11 @@ class FundamentalEngine:
 
                 # 9. Asset turnover improvement
                 try:
-                    at_current = metrics["revenue_growth_yoy"] if not pd.isna(metrics["revenue_growth_yoy"]) else 0
+                    at_current = (
+                        metrics["revenue_growth_yoy"]
+                        if not pd.isna(metrics["revenue_growth_yoy"])
+                        else 0
+                    )
                     # Simplified - just check if revenue grew
                     if at_current > 0:
                         piotroski += 1
