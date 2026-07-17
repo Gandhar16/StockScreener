@@ -117,7 +117,7 @@ class TechnicalConfig(BaseModel):
         )
 
     class RSConfig(BaseModel):
-        benchmark_map: dict = Field(
+        benchmark_map: dict[str, str] = Field(
             default_factory=lambda: {
                 ".NS": "^NSEI",
                 ".BO": "^BSESN",
@@ -142,7 +142,7 @@ class TechnicalConfig(BaseModel):
         min_rr_floor: float = Field(default=1.5)
 
     class SetupScoreConfig(BaseModel):
-        weights: dict = Field(
+        weights: dict[str, float] = Field(
             default_factory=lambda: {
                 "pattern": 0.35,
                 "mtf": 0.20,

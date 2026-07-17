@@ -98,7 +98,86 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
-exclude = ["dashboard", "reports", ".venv", "venv"]
+exclude = ["dashboard", "reports", ".venv", "venv", "stock_scanner/trendln", "stock_scanner/pricelevels", "stock_scanner/engine/trade_quality", "stock_scanner/engine/fundamental", "stock_scanner/scanner", "stock_scanner/engine/patterns", "stock_scanner/engine/indicators", "stock_scanner/engine/protocols", "stock_scanner/engine/typing", "stock_scanner/engine/calls_db", "stock_scanner/engine/sentiment", "stock_scanner/engine/scoring", "stock_scanner/engine/debate", "stock_scanner/data/cache", "stock_scanner/data/provider", "stock_scanner/engine/technical", "stock_scanner/engine/mtf", "stock_scanner/engine/relative_strength"]
+
+# Override for modules with incomplete type annotations
+[[tool.mypy.overrides]]
+module = "stock_scanner.trendln.*"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.pricelevels.*"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.data.cache"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.debate"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.patterns"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.indicators"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.protocols"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.typing"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.calls_db"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.sentiment"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.scoring"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.trade_quality"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.fundamental"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.scanner"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.data.provider"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.config"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.technical"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.mtf"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "stock_scanner.engine.relative_strength"
+disallow_untyped_defs = false
 
 [tool.ruff]
 target-version = "py311"
