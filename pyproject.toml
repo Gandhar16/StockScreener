@@ -13,7 +13,6 @@ authors = [{name = "Antigravity Dev Team"}]
 dependencies = [
     "pandas>=2.1",
     "yfinance>=0.2.40",
-    "financetoolkit>=1.1,<1.3",
     "pyyaml>=6.0",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
