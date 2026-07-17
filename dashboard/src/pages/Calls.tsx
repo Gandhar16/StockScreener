@@ -62,52 +62,6 @@ export const Calls: FC = () => {
       return String(aVal).localeCompare(String(bVal)) * order;
     });
 
-  const columns = [
-    { key: 'ticker', header: 'Ticker', render: (row: EquityCall) => (
-      <div className="flex items-center gap-2">
-        <span className="font-mono font-semibold">{row.ticker}</span>
-        <Badge variant={row.type === 'long_term' ? 'success' : row.type === 'swing' ? 'info' : 'danger'} size="sm">
-          {row.type.replace('_', ' ').toUpperCase()}
-        </Badge>
-      </div>
-    )},
-    { key: 'score', header: 'Score', render: (row: EquityCall) => (
-      <div className="flex items-center gap-2">
-        <span className={`font-mono font-bold ${row.score >= 80 ? 'text-accent-success' : row.score >= 60 ? 'text-accent-warning' : 'text-accent-danger'}`}>
-          {row.score.toFixed(1)}
-        </span>
-        <div className="w-16 h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
-          <div className="h-full bg-accent-primary" style={{ width: `${row.score}%` }} />
-        </div>
-      </div>
-    )},
-    { key: 'conviction', header: 'Conviction', render: (row: EquityCall) => (
-      <Badge variant={row.conviction === 'HIGH' ? 'success' : row.conviction === 'MEDIUM' ? 'warning' : 'neutral'} size="sm">
-        {row.conviction}
-      </Badge>
-    )},
-    { key: 'entry', header: 'Entry', render: (row: EquityCall) => row.entry ? `$${row.entry.toFixed(2)}` : '—' },
-    { key: 'stop', header: 'Stop', render: (row: EquityCall) => row.stop ? `$${row.stop.toFixed(2)}` : '—' },
-    { key: 'target', header: 'Target', render: (row: EquityCall) => row.target ? `$${row.target.toFixed(2)}` : '—' },
-    { key: 'rr', header: 'R:R', render: (row: EquityCall) => {
-      if (!row.entry || !row.stop || !row.target) return '—';
-      const risk = row.entry - row.stop;
-      const reward = row.target - row.entry;
-      return risk > 0 ? `${(reward / risk).toFixed(1)}` : '—';
-    }},
-    { key: 'timestamp', header: 'Updated', render: (row: EquityCall) => (
-      <span className="text-text-secondary">{new Date(row.timestamp).toLocaleString()}</span>
-    )},
-  ];
-
-  const handleSort = (key: 'score' | 'ticker' | 'timestamp') => {
-    if (sortBy === key) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(key);
-      setSortOrder('desc');
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -224,7 +178,7 @@ export const Calls: FC = () => {
                 { key: 'timestamp', header: 'Updated', render: (row: EquityCall) => (
                   <span className="text-text-secondary">{new Date(row.timestamp).toLocaleString()}</span>
                 )},
-              ].sort((a, b) => a.key === sortBy ? 0 : 1), // Keep sortBy first for visual
+              ]}
               keyExtractor={(row) => row.ticker}
               striped
               hoverable

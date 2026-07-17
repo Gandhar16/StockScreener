@@ -1,6 +1,6 @@
-import { FC, ReactNode, useState } from 'react';
+import { FC, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Badge } from '../ui/Badge';
+
 
 const navigation = [
   { path: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -58,7 +58,7 @@ export const Layout: FC = () => {
                 <span className="text-lg flex-shrink-0">{item.icon}</span>
                 {sidebarOpen && <span className="font-medium">{item.label}</span>}
                 {isActive && sidebarOpen && (
-                  <Badge variant="success" size="sm" className="ml-auto">Active</Badge>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent-success/20 text-accent-success ml-auto">Active</span>
                 )}
               </NavLink>
             );

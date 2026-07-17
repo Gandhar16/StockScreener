@@ -1,11 +1,11 @@
 import { FC } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { Layout } from '../components/Layout';
-import { Dashboard } from '../pages/Dashboard';
-import { Calls } from '../pages/Calls';
-import { Scanner } from '../pages/Scanner';
-import { Backtest } from '../pages/Backtest';
-import { Settings } from '../pages/Settings';
+import { Layout } from '@/components/Layout';
+import { Dashboard } from '@/pages/Dashboard';
+import { Calls } from '@/pages/Calls';
+import { Scanner } from '@/pages/Scanner';
+import { Backtest } from '@/pages/Backtest';
+import { Settings } from '@/pages/Settings';
 
 export const App: FC = () => {
   return (

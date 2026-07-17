@@ -1,9 +1,7 @@
 import { FC, useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { Button } from '../components/ui/Button';
-import { Select } from '../components/ui/Select';
 import { Input } from '../components/ui/Input';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 

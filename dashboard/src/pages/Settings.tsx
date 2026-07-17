@@ -1,9 +1,8 @@
 import { FC, useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
-import { Badge } from '../components/ui/Badge';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 
 interface Settings {
   telegram_bot_token: string;
@@ -16,6 +15,47 @@ interface Settings {
   data_cache_ttl: number;
   log_level: string;
 }
+
+interface BaseField {
+  key: keyof Settings;
+  label: string;
+  type: 'text' | 'password' | 'number' | 'select';
+  placeholder?: string;
+  fullWidth?: boolean;
+}
+
+interface TextField extends BaseField {
+  type: 'text' | 'password';
+  min?: never;
+  max?: never;
+  options?: never;
+}
+
+interface NumberField extends BaseField {
+  type: 'number';
+  min: number;
+  max: number;
+  placeholder?: string;
+  options?: never;
+}
+
+interface SelectField extends BaseField {
+  type: 'select';
+  options: { value: string; label: string }[];
+  placeholder?: string;
+  min?: never;
+  max?: never;
+}
+
+type FormField = TextField | NumberField | SelectField;
+
+interface Section {
+  title: string;
+  description: string;
+  fields: FormField[];
+  action?: React.ReactNode;
+}
+
 
 export const Settings: FC = () => {
   const [settings, setSettings] = useState<Settings>({
@@ -87,7 +127,7 @@ export const Settings: FC = () => {
     }
   };
 
-  const sections = [
+  const sections: Section[] = [
     {
       title: 'Telegram Notifications',
       description: 'Configure bot for daily scan alerts and signal notifications',

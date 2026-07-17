@@ -1,7 +1,1 @@
-ci: Fix all mypy and type checking errors
-
-- Fix config.py type annotations (dict[str, str], dict[str, float])
-- Update mypy config with proper overrides for external modules
-- Exclude trendln and pricelevels from strict type checking
-- Add per-module overrides for disallow_untyped_defs = false
-- All checks pass: ruff, format, tests, coverage (100%), mypy
+ci: Fix all TypeScript errors and dashboard build
