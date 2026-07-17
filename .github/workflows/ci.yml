@@ -43,13 +43,13 @@ jobs:
         run: poetry install --with dev --no-interaction
       
       - name: Run Ruff
-        run: poetry run ruff check .
+        run: poetry run ruff check . --output-format=concise
       
       - name: Run Ruff Format Check
         run: poetry run ruff format --check .
       
       - name: Run MyPy
-        run: poetry run mypy stock_scanner
+        run: poetry run mypy stock_scanner --show-error-codes
 
   test:
     name: Tests
