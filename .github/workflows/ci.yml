@@ -38,6 +38,8 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       
+      - name: Update Poetry lock
+        run: poetry lock --no-interaction
       - name: Install dependencies
         run: poetry install --with dev --no-interaction
       
@@ -77,6 +79,8 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       
+      - name: Update Poetry lock
+        run: poetry lock --no-interaction
       - name: Install dependencies
         run: poetry install --with dev --no-interaction
       
@@ -197,6 +201,8 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       
+      - name: Update Poetry lock
+        run: poetry lock --no-interaction
       - name: Install dependencies
         run: poetry install --with dev --no-interaction
       
