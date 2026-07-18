@@ -257,7 +257,7 @@ jobs:
   deploy-production:
     name: Deploy to Production
     needs: [build, dashboard]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != ''
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -289,4 +289,3 @@ jobs:
           projectName: stockcalls
           directory: dashboard/dist
           branch: main
-        continue-on-error: true
