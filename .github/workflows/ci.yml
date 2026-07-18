@@ -134,8 +134,8 @@ jobs:
       
       - name: Verify package
         run: |
-          pip install dist/*.whl
-          stock-scan --help
+          pip install dist/stock_scanner-*.whl
+          python -m stock_scanner --help
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
