@@ -108,3 +108,5 @@ python main.py --mode single_stock --tickers MSFT,AAPL
 Outputs are saved in the configured output directory:
 *   `scan_results.csv`: Raw sorted scoring metrics.
 *   `scan_report.md`: Visual Markdown report featuring rating labels (e.g. 🟢 Strong Buy, 🔴 Avoid) and metric tables.
+
+<!-- CI trigger -->
