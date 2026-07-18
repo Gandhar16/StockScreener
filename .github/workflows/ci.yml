@@ -288,3 +288,4 @@ jobs:
           projectName: stockcalls
           directory: dashboard/dist
           branch: main
+        continue-on-error: true
