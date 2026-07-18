@@ -134,6 +134,7 @@ jobs:
       
       - name: Verify package
         run: |
+          ls -la dist/
           pip install dist/stock_scanner-*.whl
           python -m stock_scanner --help
       
