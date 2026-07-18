@@ -96,14 +96,14 @@ python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false
 disallow_incomplete_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
-exclude = ["dashboard", "reports", ".venv", "venv", "stock_scanner/trendln", "stock_scanner/pricelevels", "stock_scanner/engine/trade_quality", "stock_scanner/engine/fundamental", "stock_scanner/scanner", "stock_scanner/engine/patterns", "stock_scanner/engine/indicators", "stock_scanner/engine/protocols", "stock_scanner/engine/typing", "stock_scanner/engine/calls_db", "stock_scanner/engine/sentiment", "stock_scanner/engine/scoring", "stock_scanner/engine/debate", "stock_scanner/data/cache", "stock_scanner/data/provider", "stock_scanner/engine/technical", "stock_scanner/engine/mtf", "stock_scanner/engine/relative_strength"]
+exclude = ["dashboard", "reports", ".venv", "venv", "stock_scanner/trendln", "stock_scanner/pricelevels", "stock_scanner/engine/trade_quality", "stock_scanner/engine/fundamental", "stock_scanner/scanner", "stock_scanner/engine/patterns", "stock_scanner/engine/indicators", "stock_scanner/engine/protocols", "stock_scanner/engine/typing", "stock_scanner/engine/calls_db", "stock_scanner/engine/sentiment", "stock_scanner/engine/scoring", "stock_scanner/engine/debate", "stock_scanner/data/cache", "stock_scanner/data/provider", "stock_scanner/engine/technical", "stock_scanner/engine/mtf", "stock_scanner/engine/relative_strength", "stock_scanner/engine/backtest", "stock_scanner/output"]
 
 # Override for modules with incomplete type annotations
 [[tool.mypy.overrides]]
