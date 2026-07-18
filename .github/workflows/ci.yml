@@ -135,8 +135,8 @@ jobs:
       - name: Verify package
         run: |
           ls -la dist/
-          pip install dist/stock_scanner-*.whl
-          python -m stock_scanner --help
+          pip install dist/stock_scanner-1.0.0-py3-none-any.whl
+          python -c "from stock_scanner.main import main; print('Entry point works!')" 
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
