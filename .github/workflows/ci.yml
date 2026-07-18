@@ -116,6 +116,9 @@ jobs:
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
       
+      - name: Update Poetry lock
+        run: poetry lock --no-interaction
+      
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v4
@@ -124,7 +127,6 @@ jobs:
           key: venv-${{ runner.os }}-${{ hashFiles('poetry.lock', 'pyproject.toml') }}
       
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction
       
       - name: Build package
